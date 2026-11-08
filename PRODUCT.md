@@ -48,6 +48,16 @@ Busted players either rebuy or get replaced.
 
 ## 3. Modes
 
+### 3.0 Home, Onboarding and the Daily Workout (the gym)
+- **Onboarding** runs on first launch and can be reopened from the sidebar's Guide button. It covers the classify → exploit → review loop, the five types, how a session works (with keyboard shortcuts), the training tools, Claude key setup, and where to start.
+- **Home** is the dashboard. It shows today's workout, your streak with an activity heatmap, your level and XP, the four-step loop, your weakest skills (each with a one-click drill), and your last live session.
+- **Daily Workout** is 3 rounds × 5 reps of freshly generated spots:
+  - Preflop: iso-raises, opens, limp-raises, cold 4-bets, and "is it in the top X%?"
+  - Reads: Spot the type. A real table is simulated for ~80 hands, then you classify a player from their stats and showdowns. Also bluff-catching, sizing tells and flop raises.
+  - Value: the inverse question, value sizing, thin value, barrels, bluffs and c-bets.
+- Skills you miss get weighted to come up more often.
+- Scoring: +10 XP per correct rep, with a combo multiplier (×2 at 3 in a row, ×3 at 6). Finishing a workout gives +50 XP and counts toward your daily streak. 20 reps or a 30+ hand session also counts as an active day. Levels run from Tourist up to Pro.
+
 ### 3.1 Live Table (grind)
 - 9-max table UI styled after a major online site: felt, seats, chip stacks,
   bets, dealer button, pot, and an action bar with Fold / Check-Call / Bet-Raise.
@@ -63,6 +73,7 @@ Busted players either rebuy or get replaced.
 - **Ask Claude**: send the hand history, villain types, and coach grades to
   Claude for a deeper write-up. Follow-up questions are supported.
 - Session stats: hands, net $, bb/100, decision grade breakdown.
+- **End session → Session report** (every session): a one-line verdict that separates results from decision quality, your stats against a winning live 1/2 profile (VPIP, PFR, limp, 3-bet, c-bet, AF, WTSD), ranked findings each with a one-click drill, and a full Claude review.
 - **Analyze session**: Claude reviews the whole session. It gets your stats vs.
   a winning 1/2 profile, the leaks grouped by principle, how you adjusted to
   each type, the biggest pots, and the next drills to run.
@@ -132,18 +143,11 @@ live session history.
 
 ## 4. Look and feel
 
-Minimal and functional, like a classic desktop poker client. No gradients, no
-glass effects, no emoji.
-- Black, charcoal and white with a single red accent. Flat surfaces with 1px
-  borders.
-- A black and white table: a charcoal rail, near-black felt and one thin inner
-  line.
-- White cards with large indices and a four-color deck (♠ black, ♥ red,
-  ♦ blue, ♣ green), plus dark-red card backs.
-- Rectangular nameplates, a red bar showing whose turn it is, and a bottom
-  action bar with presets, a slider, an amount box, and Fold / Call / Raise
-  buttons.
-- The system font, with monospaced digits for money.
+Modern and neutral, in the style of Aside, Linear and Vercel. Not stock macOS.
+- Neutral palette: `#0A0A0A` background, `#171717` cards, 10% white borders and white primary buttons. Color is used only for signals (good, warning, mistake) and player types.
+- Fonts: **Geist** for the UI and **Geist Mono** for labels, numbers and keyboard hints. Both are bundled under the SIL OFL license.
+- Custom controls instead of system ones: sidebar, tabs, dropdowns, sliders, toggles, in-window modals, and a right-side Claude drawer. There are no system sheets, no glass, no gradients and no emoji.
+- Table: minimal black felt with a thin rail and white cards with big indices (four-color deck). Nameplates are blocky, and a white bar marks whose turn it is. Action buttons show their keyboard hints, with Raise as the primary.
 
 ## 5. Technical
 

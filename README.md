@@ -22,6 +22,8 @@ You can also open `Package.swift` in Xcode and run the `HorseTrainer` scheme.
 
 | Screen | What it trains |
 |---|---|
+| **Home** | Dashboard: today's workout, streak heatmap, level/XP, weakest skills, last session. |
+| **Daily Workout** | The gym: 3 rounds × 5 fresh reps (preflop, spot-the-type reads, value). Combos, XP, streaks. Adapts to what you miss. |
 | **Live Table** | 2–9 handed 1/2 with realistic bot types (hidden by default). Every decision is graded by the exploit coach. "Analyze session" sends the whole session to Claude. |
 | **Read the Table** | Sit out, watch or fast-forward hands, tag every seat, then get scored on your reads. |
 | **Exploit Drills** | Type-dependent spots (bluff-catching, flop raises, iso-raises, limp-raises, cold 4-bets, value sizing…). |
@@ -31,6 +33,8 @@ You can also open `Package.swift` in Xcode and run the `HorseTrainer` scheme.
 | **Playbook** | Type cards and the principles that every grade cites. |
 
 Keyboard at the table: `F` fold · `C` check/call · `R` bet/raise · `Space` deal.
+
+First launch shows a short onboarding. Reopen it anytime from **Guide** in the sidebar.
 
 ## Claude coach (optional)
 

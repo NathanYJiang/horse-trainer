@@ -14,12 +14,12 @@ struct PlaybookView: View {
                                 HStack {
                                     Rectangle().fill(Theme.color(for: t)).frame(width: 4, height: 34)
                                     VStack(alignment: .leading) {
-                                        Text(t.name).font(.system(size: 16, weight: .semibold))
+                                        Text(t.name).font(Theme.ui(16, .semibold))
                                         Text("VPIP \(Int(t.vpipBand.lowerBound * 100))–\(Int(t.vpipBand.upperBound * 100)) · PFR \(Int(t.pfrBand.lowerBound * 100))–\(Int(t.pfrBand.upperBound * 100))")
-                                            .font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                                            .font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                                     }
                                 }
-                                Text(t.oneLiner).font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
+                                Text(t.oneLiner).font(Theme.ui(12)).foregroundStyle(.white.opacity(0.85))
                                 section("Tendencies", pb.tendencies, Theme.accent)
                                 section("Tells", pb.tells, Theme.warn)
                                 section("Exploits", pb.exploits, Theme.good)
@@ -28,12 +28,12 @@ struct PlaybookView: View {
                         }
                     }
                 }
-                Text("Principles").font(.system(size: 18, weight: .bold)).padding(.top, 8)
+                Text("Principles").font(Theme.ui(18, .bold)).padding(.top, 8)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), spacing: 10)], spacing: 10) {
                     ForEach(Principle.allCases) { p in
                         VStack(alignment: .leading, spacing: 4) {
                             PrincipleCard(principle: p)
-                            Text(p.source).font(.system(size: 9)).foregroundStyle(Theme.textDim)
+                            Text(p.source).font(Theme.ui(9)).foregroundStyle(Theme.textDim)
                         }
                     }
                 }
@@ -44,8 +44,8 @@ struct PlaybookView: View {
 
     func section(_ title: String, _ items: [String], _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title.uppercased()).font(.system(size: 10, weight: .bold)).foregroundStyle(color)
-            ForEach(items, id: \.self) { Text("• \($0)").font(.system(size: 12)).foregroundStyle(.white.opacity(0.85)) }
+            Text(title.uppercased()).font(Theme.ui(10, .bold)).foregroundStyle(color)
+            ForEach(items, id: \.self) { Text("• \($0)").font(Theme.ui(12)).foregroundStyle(.white.opacity(0.85)) }
         }
     }
 }
@@ -76,8 +76,8 @@ struct ProgressScreen: View {
                 }
                 Panel {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Live sessions").font(.system(size: 14, weight: .bold))
-                        if p.sessions.isEmpty { Text("No sessions yet. Sessions are saved when you start a new table or quit.").font(.system(size: 12)).foregroundStyle(Theme.textDim) }
+                        Text("Live sessions").font(Theme.ui(14, .bold))
+                        if p.sessions.isEmpty { Text("No sessions yet. Sessions are saved when you start a new table or quit.").font(Theme.ui(12)).foregroundStyle(Theme.textDim) }
                         ForEach(p.sessions.reversed()) { s in
                             HStack {
                                 Text(s.date.formatted(date: .abbreviated, time: .shortened)).frame(width: 170, alignment: .leading)
@@ -87,18 +87,18 @@ struct ProgressScreen: View {
                                 Text("\(s.good) good · \(s.inaccuracies) inacc · \(s.mistakes) mistakes")
                                 Spacer()
                             }
-                            .font(.system(size: 12))
+                            .font(Theme.ui(12))
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Panel {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Read-the-table quizzes").font(.system(size: 14, weight: .bold))
-                        if p.quizzes.isEmpty { Text("No quizzes yet.").font(.system(size: 12)).foregroundStyle(Theme.textDim) }
+                        Text("Read-the-table quizzes").font(Theme.ui(14, .bold))
+                        if p.quizzes.isEmpty { Text("No quizzes yet.").font(Theme.ui(12)).foregroundStyle(Theme.textDim) }
                         ForEach(p.quizzes.reversed()) { q in
                             Text("\(q.date.formatted(date: .abbreviated, time: .shortened)) · \(q.correct)/\(q.total) after \(q.handsObserved) hands")
-                                .font(.system(size: 12))
+                                .font(Theme.ui(12))
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,10 +111,10 @@ struct ProgressScreen: View {
     func tallyPanel(_ title: String, _ rows: [(String, Tally)]) -> some View {
         Panel {
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.system(size: 14, weight: .bold))
+                Text(title).font(Theme.ui(14, .bold))
                 ForEach(rows, id: \.0) { row in
                     HStack(spacing: 8) {
-                        Text(row.0).font(.system(size: 11)).frame(width: 140, alignment: .leading).lineLimit(1)
+                        Text(row.0).font(Theme.ui(11)).frame(width: 140, alignment: .leading).lineLimit(1)
                         GeometryReader { g in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(Theme.panelHi)
@@ -125,7 +125,7 @@ struct ProgressScreen: View {
                         }
                         .frame(height: 6)
                         Text(row.1.attempts == 0 ? "–" : "\(row.1.correct)/\(row.1.attempts)")
-                            .font(.system(size: 11, design: .monospaced)).frame(width: 52, alignment: .trailing)
+                            .font(Theme.mono(11, .regular)).frame(width: 52, alignment: .trailing)
                     }
                 }
             }
@@ -136,102 +136,87 @@ struct ProgressScreen: View {
 
 struct SettingsScreen: View {
     @Environment(AppModel.self) private var app
+    @State private var keyDraft = ""
 
     var body: some View {
         @Bindable var s = app.settings
-        Form {
-            Section("Table") {
-                Picker("Default table", selection: $s.defaultPreset) {
-                    ForEach(TablePreset.allCases) { Text($0.name).tag($0) }
-                }
-                HStack {
-                    Text("Bot speed")
-                    Slider(value: $s.botSpeed, in: 0.15...1.5)
-                    Text(String(format: "%.1fs", s.botSpeed)).monospacedDigit().frame(width: 40)
-                }
-                Toggle("Auto-deal next hand", isOn: $s.autoDeal)
-                Toggle("Straddle when I'm UTG", isOn: $s.heroStraddles)
-                Toggle("Four-color deck", isOn: $s.fourColor)
-                Toggle("Instant coach feedback (grade each decision as you make it)", isOn: $s.instantFeedback)
-            }
-            Section {
-                SecureField("Anthropic API key", text: $s.apiKey)
-                Picker("Model", selection: $s.model) {
-                    ForEach(ClaudeClient.models, id: \.self) { Text($0).tag($0) }
-                }
-                Picker("Effort", selection: $s.effort) {
-                    ForEach(["low", "medium", "high"], id: \.self) { Text($0).tag($0) }
-                }
-                Text(app.settings.hasKey ? "Claude coaching is enabled." : "Add a key (saved only on this Mac, readable only by your user) or launch with ANTHROPIC_API_KEY set.")
-                    .font(.system(size: 11)).foregroundStyle(Theme.textDim)
-            } header: {
-                Text("Claude coach")
-            }
-        }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-    }
-}
-
-struct ClaudeChatSheet: View {
-    @Environment(AppModel.self) private var app
-    let chat: CoachChat
-    @State private var followUp = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(chat.title).font(.system(size: 15, weight: .semibold))
-                Spacer()
-                Text(app.settings.model).font(.system(size: 11)).foregroundStyle(Theme.textDim)
-                Button("Close") {
-                    chat.cancel()
-                    app.chat = nil
-                }
-                .keyboardShortcut(.cancelAction)
-            }
-            .padding(16)
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(Array(chat.turns.enumerated()), id: \.offset) { _, turn in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(turn.question)
-                                .font(.system(size: 12, weight: .semibold))
-                                .padding(8)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accent.opacity(0.18)))
-                            if turn.answer.isEmpty && chat.isStreaming {
-                                HStack(spacing: 8) {
-                                    ProgressView().controlSize(.small)
-                                    Text("Claude is thinking…").font(.system(size: 12)).foregroundStyle(Theme.textDim)
-                                }
-                            } else {
-                                MarkdownText(text: turn.answer)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PageHeader(title: "Settings", subtitle: "Table feel, deck, and the Claude coach.") { EmptyView() }
+                Panel(padding: 0) {
+                    VStack(spacing: 0) {
+                        row("Default table", "Mix used when the app starts") {
+                            BlockMenu(label: "MIX", selection: $s.defaultPreset, options: TablePreset.allCases.map { ($0, $0.name) })
+                        }
+                        row("Bot speed", "Seconds per bot action") {
+                            HStack(spacing: 10) {
+                                BlockSlider(value: $s.botSpeed, range: 0.15...1.5, step: 0.05).frame(width: 180)
+                                Text(String(format: "%.2fs", s.botSpeed)).font(Theme.mono(12)).frame(width: 46, alignment: .trailing)
                             }
                         }
-                    }
-                    if let e = chat.error {
-                        Text(e).foregroundStyle(Theme.bad).font(.system(size: 12))
+                        row("Auto-deal", "Deal the next hand automatically") { toggle($s.autoDeal) }
+                        row("Straddle when UTG", "Post a $5 straddle from under the gun") { toggle($s.heroStraddles) }
+                        row("Four-color deck", "♠ black, ♥ red, ♦ blue, ♣ green") { toggle($s.fourColor) }
+                        row("Instant feedback", "Grade each decision as you make it, not after the hand", last: true) { toggle($s.instantFeedback) }
                     }
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                SectionLabel("Claude coach")
+                Panel(padding: 0) {
+                    VStack(spacing: 0) {
+                        row("API key", app.settings.hasKey ? "Connected. Stored only on this Mac." : "Needed for Claude reviews. Stored only on this Mac.") {
+                            HStack(spacing: 8) {
+                                SecureField(app.settings.apiKey.isEmpty ? "sk-ant-…" : "••••••••••••", text: $keyDraft)
+                                    .textFieldStyle(BlockFieldStyle())
+                                    .frame(width: 240)
+                                Button("Save") {
+                                    s.apiKey = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    keyDraft = ""
+                                }
+                                .buttonStyle(PillButtonStyle(prominent: false))
+                                .disabled(keyDraft.isEmpty)
+                            }
+                        }
+                        row("Model", "Which Claude model reviews your play") {
+                            BlockMenu(label: "MODEL", selection: $s.model, options: ClaudeClient.models.map { ($0, $0) })
+                        }
+                        row("Effort", "Higher means deeper reviews, but they're slower", last: true) {
+                            BlockTabs(selection: $s.effort, options: [("low", "Low"), ("medium", "Medium"), ("high", "High")])
+                        }
+                    }
+                }
+                HStack {
+                    Button("Show the guide again") { app.showOnboarding = true }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                    Spacer()
+                }
             }
-            Divider()
-            HStack {
-                TextField("Ask a follow-up…", text: $followUp)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(send)
-                Button("Send", action: send).disabled(followUp.isEmpty || chat.isStreaming)
-            }
-            .padding(12)
+            .padding(24)
+            .frame(maxWidth: 860, alignment: .leading)
         }
-        .frame(width: 640, height: 640)
     }
 
-    func send() {
-        guard !followUp.isEmpty, !chat.isStreaming else { return }
-        chat.ask(followUp, settings: app.settings)
-        followUp = ""
+    func row<C: View>(_ title: String, _ detail: String, last: Bool = false, @ViewBuilder control: () -> C) -> some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Theme.ui(13.5, .medium))
+                Text(detail).font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+            }
+            Spacer()
+            control()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) { if !last { Rectangle().fill(Theme.border).frame(height: 1) } }
+    }
+
+    func toggle(_ b: Binding<Bool>) -> some View {
+        Button { b.wrappedValue.toggle() } label: {
+            ZStack(alignment: b.wrappedValue ? .trailing : .leading) {
+                RoundedRectangle(cornerRadius: 5).fill(b.wrappedValue ? Theme.text : Theme.surface3).frame(width: 36, height: 20)
+                RoundedRectangle(cornerRadius: 4).fill(b.wrappedValue ? Theme.bg : Theme.textDim).frame(width: 14, height: 14).padding(3)
+            }
+            .animation(.easeOut(duration: 0.12), value: b.wrappedValue)
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -10,7 +10,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "PokerCore"),
-        .executableTarget(name: "HorseTrainer", dependencies: ["PokerCore"]),
+        .executableTarget(name: "HorseTrainer", dependencies: ["PokerCore"], resources: [.copy("Resources/Fonts")]),
         .testTarget(name: "PokerCoreTests", dependencies: ["PokerCore"]),
     ]
 )

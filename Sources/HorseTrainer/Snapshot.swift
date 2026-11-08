@@ -12,6 +12,9 @@ enum Snapshot {
         let app = AppModel()
         app.live.debugAdvanceToHero()
         let size = CGSize(width: 1240, height: 900)
+        render(OnboardingView().environment(app), size: CGSize(width: 1000, height: 700), to: dir.appendingPathComponent("onboarding.png"))
+        render(HStack(spacing: 0) { Sidebar().frame(width: 224); Rectangle().fill(Theme.border).frame(width: 1); Spacer() }.environment(app),
+               size: CGSize(width: 400, height: 900), to: dir.appendingPathComponent("sidebar.png"))
         render(LiveTableScreen(game: app.live).environment(app), size: size, to: dir.appendingPathComponent("live.png"))
         app.live.showHUD = true
         render(PokerTableView(game: app.live, settings: app.settings).environment(app), size: CGSize(width: 860, height: 640), to: dir.appendingPathComponent("table-hud.png"))

@@ -48,7 +48,7 @@ struct PokerTableView: View {
                 .strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
                 .frame(width: width - 40, height: height - 40)
             Text("HORSE TRAINER")
-                .font(.system(size: 11, weight: .semibold))
+                .font(Theme.ui(11, .semibold))
                 .tracking(5)
                 .foregroundStyle(Color.white.opacity(0.08))
                 .offset(y: height * 0.3)
@@ -70,7 +70,7 @@ struct PokerTableView: View {
                 .animation(.spring(duration: 0.4), value: h.board.count)
                 if let r = h.result {
                     Text(resultText(h, r))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(Theme.ui(12.5, .medium))
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 10)
@@ -78,7 +78,7 @@ struct PokerTableView: View {
                         .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.6)))
                 }
             } else {
-                Text("Deal a hand to start").font(.system(size: 13)).foregroundStyle(Theme.textDim)
+                Text("Deal a hand to start").font(Theme.ui(13)).foregroundStyle(Theme.textDim)
             }
         }
     }
@@ -108,7 +108,7 @@ struct PokerTableView: View {
 struct DealerButton: View {
     var body: some View {
         Text("D")
-            .font(.system(size: 11, weight: .bold))
+            .font(Theme.ui(11, .bold))
             .foregroundStyle(.black)
             .frame(width: 20, height: 20)
             .background(Circle().fill(Color.white))
@@ -171,13 +171,13 @@ struct SeatView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(isHero ? "You" : info.name)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(Theme.ui(12, .medium))
                         .foregroundStyle(Color(white: 0.85))
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     if let h = game.hand, handPlayer != nil {
                         Text(h.position(of: seat).short)
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(Theme.ui(9, .semibold))
                             .foregroundStyle(Theme.textDim)
                     }
                 }
@@ -193,7 +193,7 @@ struct SeatView: View {
         .background(RoundedRectangle(cornerRadius: 5).fill(Theme.surface2))
         .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(borderColor, lineWidth: toAct || won != nil ? 1.5 : 1))
         .overlay(alignment: .bottom) {
-            if toAct { Rectangle().fill(Theme.red).frame(height: 2).padding(.horizontal, 1) }
+            if toAct { Rectangle().fill(Theme.text).frame(height: 2).padding(.horizontal, 1) }
         }
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .help(bot.map { "\($0.name): \($0.appearance)" } ?? "")
@@ -202,13 +202,13 @@ struct SeatView: View {
     @ViewBuilder var subline: some View {
         if let b = bot {
             if game.showHUD {
-                Text(b.type.name).font(.system(size: 9.5, weight: .medium)).foregroundStyle(Theme.color(for: b.type))
+                Text(b.type.name).font(Theme.ui(9.5, .medium)).foregroundStyle(Theme.color(for: b.type))
             } else if let tag = game.tags[b.id] {
-                Text("Tag: \(tag.name)").font(.system(size: 9.5)).foregroundStyle(Theme.textDim)
+                Text("Tag: \(tag.name)").font(Theme.ui(9.5)).foregroundStyle(Theme.textDim)
             }
         } else if isHero, let p = handPlayer, let h = game.hand, h.board.count >= 3 {
             Text(HandRead.describe(hole: p.hole, board: h.board, value: HandEvaluator.evaluate(p.hole + h.board)))
-                .font(.system(size: 9.5))
+                .font(Theme.ui(9.5))
                 .foregroundStyle(Theme.textDim)
                 .lineLimit(1)
         }
@@ -224,7 +224,7 @@ struct SeatView: View {
 
     func label(_ text: String, _ color: Color) -> some View {
         Text(text)
-            .font(.system(size: 10.5, weight: .semibold))
+            .font(Theme.ui(10.5, .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
@@ -233,7 +233,7 @@ struct SeatView: View {
 
     func bubbleColor(_ a: String) -> Color {
         if a.hasPrefix("Fold") { return Theme.surface3 }
-        if a.hasPrefix("Raise") || a.hasPrefix("Bet") || a.hasPrefix("All-in") { return Theme.red }
+        if a.hasPrefix("Raise") || a.hasPrefix("Bet") || a.hasPrefix("All-in") { return Theme.text }
         if a.hasPrefix("Straddle") { return Color(white: 0.3) }
         return Color(white: 0.3)
     }
@@ -250,16 +250,16 @@ struct ActionBar: View {
                 controls(legal, h)
             } else if game.hand?.isComplete ?? true {
                 if game.heroSittingOut {
-                    Text("Sitting out. Hands deal automatically.").font(.system(size: 12)).foregroundStyle(Theme.textDim)
+                    Text("Sitting out. Hands deal automatically.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                     Spacer()
                 } else {
                     Spacer()
                     Button { game.dealNext() } label: { Text("Deal Next Hand").frame(minWidth: 180) }
-                        .buttonStyle(PillButtonStyle(color: Theme.red, large: true))
+                        .buttonStyle(PillButtonStyle(large: true))
                         .keyboardShortcut(.space, modifiers: [])
                 }
             } else {
-                Text(game.heroInCurrentHand ? "Waiting for other players…" : "Hand in progress…").font(.system(size: 12)).foregroundStyle(Theme.textDim)
+                Text(game.heroInCurrentHand ? "Waiting for other players…" : "Hand in progress…").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                 Spacer()
             }
         }
@@ -280,32 +280,31 @@ struct ActionBar: View {
                         Button(p.label) { setAmount(Double(p.to), legal) }
                             .buttonStyle(PillButtonStyle(color: Theme.surface3, prominent: Int(amount) == p.to, small: true))
                     }
-                    Slider(value: Binding(get: { amount }, set: { setAmount($0.rounded(), legal) }),
-                           in: Double(legal.minRaiseTo)...Double(max(legal.minRaiseTo + 1, legal.maxRaiseTo)))
-                        .frame(width: 170)
-                        .tint(Theme.red)
+                    BlockSlider(value: Binding(get: { amount }, set: { setAmount($0.rounded(), legal) }),
+                                range: Double(legal.minRaiseTo)...Double(max(legal.minRaiseTo + 1, legal.maxRaiseTo)))
+                        .frame(width: 180)
                     TextField("", text: $amountText)
                         .textFieldStyle(.plain)
                         .font(Theme.mono(13))
                         .multilineTextAlignment(.trailing)
                         .padding(.horizontal, 6)
                         .frame(width: 64, height: 24)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.white))
-                        .foregroundStyle(.black)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.bg))
+                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Theme.borderStrong))
                         .onSubmit { if let v = Double(amountText) { setAmount(v, legal) } }
                 }
                 .fixedSize()
             }
             HStack(spacing: 8) {
                 if legal.toCall > 0 {
-                    actionButton("Fold", nil, key: "f") { game.heroAct(.fold) }
+                    actionButton("Fold", nil, key: "f", primary: false) { game.heroAct(.fold) }
                 }
-                actionButton(legal.canCheck ? "Check" : "Call", legal.canCheck ? nil : "$\(legal.callAmount)", key: "c") {
+                actionButton(legal.canCheck ? "Check" : "Call", legal.canCheck ? nil : "$\(legal.callAmount)", key: "c", primary: !legal.canRaise) {
                     game.heroAct(legal.canCheck ? .check : .call)
                 }
                 if legal.canRaise {
                     let to = Int(amount)
-                    actionButton(to >= legal.maxRaiseTo ? "All-in" : (legal.isBet ? "Bet" : "Raise to"), "$\(to)", key: "r") {
+                    actionButton(to >= legal.maxRaiseTo ? "All-in" : (legal.isBet ? "Bet" : "Raise to"), "$\(to)", key: "r", primary: true) {
                         game.heroAct(.raise(to: to))
                     }
                 }
@@ -315,16 +314,23 @@ struct ActionBar: View {
         .onChange(of: h.actions.count) { setAmount(Double(defaultAmount(legal, h)), legal) }
     }
 
-    func actionButton(_ title: String, _ sub: String?, key: KeyEquivalent, action: @escaping () -> Void) -> some View {
+    func actionButton(_ title: String, _ sub: String?, key: KeyEquivalent, primary: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 0) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-                if let sub { Text(sub).font(Theme.mono(13)) }
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title).font(Theme.ui(13, .medium))
+                    if let sub { Text(sub).font(Theme.mono(12.5, .semibold)) }
+                }
+                Spacer(minLength: 0)
+                Text(String(key.character).uppercased())
+                    .font(Theme.mono(10))
+                    .foregroundStyle(primary ? Theme.onPrimary.opacity(0.5) : Theme.textFaint)
             }
-            .frame(width: 112, height: 40)
-            .foregroundStyle(.white)
-            .background(RoundedRectangle(cornerRadius: 5).fill(Theme.redDark))
-            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Theme.red, lineWidth: 1))
+            .padding(.horizontal, 12)
+            .frame(width: 128, height: 44)
+            .foregroundStyle(primary ? Theme.onPrimary : Theme.text)
+            .background(RoundedRectangle(cornerRadius: Theme.radiusSm).fill(primary ? Theme.primary : Theme.surface2))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(primary ? .clear : Theme.borderStrong))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

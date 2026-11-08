@@ -7,13 +7,7 @@ struct SizingLabView: View {
     var body: some View {
         VStack(spacing: 0) {
             PageHeader(title: "Sizing Lab", subtitle: "Bet the most they'll call. Read what their bet means.") {
-                Picker("", selection: $mode) {
-                    Text("Inverse Question").tag(0)
-                    Text("Read Their Bet").tag(1)
-                    Text("Size It").tag(2)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 380)
+                BlockTabs(selection: $mode, options: [(0, "Inverse Question"), (1, "Read Their Bet"), (2, "Size It")])
             }
             .padding(20)
             switch mode {
@@ -37,11 +31,7 @@ struct InverseQuestionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Picker("Villain", selection: $type) {
-                        Text("Any type").tag(PlayerType?.none)
-                        ForEach(PlayerType.allCases) { Text($0.name).tag(PlayerType?.some($0)) }
-                    }
-                    .frame(width: 200)
+                    BlockMenu(label: "VILLAIN", selection: $type, options: [(PlayerType?.none, "Any")] + PlayerType.allCases.map { (PlayerType?.some($0), $0.name) })
                     Spacer()
                 }
                 .onChange(of: type) { next() }
@@ -56,7 +46,7 @@ struct InverseQuestionView: View {
                             if step >= d.questions.count {
                                 HStack {
                                     let score = d.questions.indices.filter { qi in answers[qi].map { d.questions[qi].correct.contains($0) } ?? false }.count
-                                    Text("Score: \(score)/\(d.questions.count)").font(.system(size: 15, weight: .bold))
+                                    Text("Score: \(score)/\(d.questions.count)").font(Theme.ui(15, .bold))
                                     Spacer()
                                     Button {
                                         app.openChat(title: "Inverse question", context: d.asText,
@@ -82,7 +72,7 @@ struct InverseQuestionView: View {
     @ViewBuilder
     func questionView(_ q: LabQuestion, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(index + 1). \(q.prompt)").font(.system(size: 14, weight: .semibold))
+            Text("\(index + 1). \(q.prompt)").font(Theme.ui(14, .semibold))
             HStack(spacing: 8) {
                 ForEach(q.options.indices, id: \.self) { i in
                     Button(q.options[i]) { pick(i, index, q) }
@@ -92,8 +82,8 @@ struct InverseQuestionView: View {
             }
             if let a = answers[index] {
                 HStack(alignment: .top, spacing: 6) {
-                    Text(q.correct.contains(a) ? "Correct." : "Wrong.").font(.system(size: 12, weight: .semibold)).foregroundStyle(q.correct.contains(a) ? Theme.good : Theme.bad)
-                    Text(q.explanation).font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
+                    Text(q.correct.contains(a) ? "Correct." : "Wrong.").font(Theme.ui(12, .semibold)).foregroundStyle(q.correct.contains(a) ? Theme.good : Theme.bad)
+                    Text(q.explanation).font(Theme.ui(12)).foregroundStyle(.white.opacity(0.85))
                 }
             }
         }
@@ -133,11 +123,7 @@ struct SizeItView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Picker("Villain", selection: $type) {
-                        Text("Any type").tag(PlayerType?.none)
-                        ForEach(PlayerType.allCases) { Text($0.name).tag(PlayerType?.some($0)) }
-                    }
-                    .frame(width: 200)
+                    BlockMenu(label: "VILLAIN", selection: $type, options: [(PlayerType?.none, "Any")] + PlayerType.allCases.map { (PlayerType?.some($0), $0.name) })
                     Spacer()
                 }
                 .onChange(of: type) { next() }
@@ -146,12 +132,12 @@ struct SizeItView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             SpotScene(villainName: d.villainName, villainType: d.villainType, villainAppearance: nil, history: d.history,
                                       board: d.board, heroCards: d.heroCards, pot: d.pot, bet: nil)
-                            Text("You have \(d.handText). Pick your size.").font(.system(size: 15, weight: .semibold))
+                            Text("You have \(d.handText). Pick your size.").font(Theme.ui(15, .semibold))
                             HStack(spacing: 14) {
                                 Text(fraction <= 0 ? "Check" : "\(Int(fraction * 100))% pot · $\(Int(Double(d.pot) * fraction))")
                                     .font(Theme.mono(17))
                                     .frame(width: 200, alignment: .leading)
-                                Slider(value: $fraction, in: 0...2, step: 0.05).disabled(result != nil)
+                                BlockSlider(value: $fraction, range: 0...2, step: 0.05).disabled(result != nil)
                             }
                             HStack(spacing: 8) {
                                 ForEach([("Check", 0.0), ("33%", 0.33), ("50%", 0.5), ("66%", 0.66), ("75%", 0.75), ("Pot", 1.0), ("150%", 1.5), ("2x", 2.0)], id: \.0) { item in
@@ -173,9 +159,9 @@ struct SizeItView: View {
                             if let r = result {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(r.correct ? "Correct. \(r.message)" : "Not quite. \(r.message)")
-                                        .font(.system(size: 15, weight: .bold))
+                                        .font(Theme.ui(15, .bold))
                                         .foregroundStyle(r.correct ? Theme.good : Theme.bad)
-                                    Text(d.explanation).font(.system(size: 13))
+                                    Text(d.explanation).font(Theme.ui(13))
                                     PrincipleCard(principle: d.principle)
                                     HStack {
                                         Spacer()
@@ -215,11 +201,7 @@ struct ValueQuestionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Picker("Villain", selection: $type) {
-                        Text("Any type").tag(PlayerType?.none)
-                        ForEach(PlayerType.allCases) { Text($0.name).tag(PlayerType?.some($0)) }
-                    }
-                    .frame(width: 200)
+                    BlockMenu(label: "VILLAIN", selection: $type, options: [(PlayerType?.none, "Any")] + PlayerType.allCases.map { (PlayerType?.some($0), $0.name) })
                     Spacer()
                 }
                 .onChange(of: type) { next() }
@@ -229,7 +211,7 @@ struct ValueQuestionView: View {
                             SpotScene(villainName: d.villainName, villainType: d.villainType, villainAppearance: nil, history: d.history,
                                       board: d.board, heroCards: d.heroCards, pot: d.pot, bet: nil)
                             Text("You have \(d.heroHandText) and can play for stacks (effective $\(d.effectiveStack)).")
-                                .font(.system(size: 13)).foregroundStyle(Color(white: 0.8))
+                                .font(Theme.ui(13)).foregroundStyle(Color(white: 0.8))
                             ForEach(0..<min(answers.count + 1, d.questions.count), id: \.self) { qi in
                                 question(d.questions[qi], index: qi, drill: d)
                             }
@@ -246,7 +228,7 @@ struct ValueQuestionView: View {
 
     func question(_ q: LabQuestion, index: Int, drill d: ValueDrill) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(index + 1). \(q.prompt)").font(.system(size: 13.5, weight: .semibold))
+            Text("\(index + 1). \(q.prompt)").font(Theme.ui(13.5, .semibold))
             if index == 0 {
                 HStack(spacing: 6) {
                     SectionLabel("Their hand")
@@ -260,7 +242,7 @@ struct ValueQuestionView: View {
             }
             if let a = answers[index] {
                 Text((q.correct.contains(a) ? "Correct. " : "Not quite. ") + q.explanation)
-                    .font(.system(size: 12))
+                    .font(Theme.ui(12))
                     .foregroundStyle(q.correct.contains(a) ? Theme.good : Color(white: 0.85))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -276,7 +258,7 @@ struct ValueQuestionView: View {
             VStack(spacing: 0) {
                 ForEach(d.callTable, id: \.holding) { row in
                     HStack {
-                        Text(row.holding.label).font(.system(size: 12))
+                        Text(row.holding.label).font(Theme.ui(12))
                         Spacer()
                         Text("up to \(row.maxCall)").font(Theme.mono(12))
                     }
@@ -286,7 +268,7 @@ struct ValueQuestionView: View {
                 }
             }
             .overlay(Rectangle().strokeBorder(Theme.border))
-            Text(d.plan).font(.system(size: 12)).foregroundStyle(Color(white: 0.85)).fixedSize(horizontal: false, vertical: true)
+            Text(d.plan).font(Theme.ui(12)).foregroundStyle(Color(white: 0.85)).fixedSize(horizontal: false, vertical: true)
             PrincipleCard(principle: .inverseQuestion)
             HStack {
                 Button("Ask Claude") {
@@ -296,7 +278,7 @@ struct ValueQuestionView: View {
                 .buttonStyle(PillButtonStyle(prominent: false))
                 Spacer()
                 Button("Next spot  →") { next() }
-                    .buttonStyle(PillButtonStyle(color: Theme.red))
+                    .buttonStyle(PillButtonStyle())
                     .keyboardShortcut(.return, modifiers: [])
             }
         }

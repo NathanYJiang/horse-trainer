@@ -61,22 +61,22 @@ struct RangeMatrix: View {
             case (false, false): return Theme.surface2
             }
         }
-        if on { return Theme.red }
+        if on { return Theme.text }
         return h.isPair ? Theme.surface3 : Theme.surface2
     }
 
     func cell(_ h: HandClass) -> some View {
         VStack(spacing: 0) {
-            Text(h.description).font(.system(size: cellWidth > 40 ? 11.5 : 9.5, weight: .medium))
+            Text(h.description).font(Theme.mono(cellWidth > 40 ? 11 : 9, .medium))
             if showRank {
                 Text("\(max(1, Int((RangeModel.standard.percentile(of: h) * 100).rounded(.up))))%")
                     .font(Theme.mono(8.5, .regular))
-                    .foregroundStyle(Color.white.opacity(0.55))
+                    .opacity(0.6)
             }
         }
         .frame(width: cellWidth, height: cellHeight)
         .background(Rectangle().fill(fill(h)))
-        .foregroundStyle(range.contains(h) || target?.contains(h) == true ? .white : Color(white: 0.62))
+        .foregroundStyle(target != nil ? (range.contains(h) || target!.contains(h) ? Color.white : Theme.textFaint) : (range.contains(h) ? Theme.onPrimary : Theme.textDim))
     }
 }
 
@@ -87,12 +87,7 @@ struct RangeBuilderView: View {
         VStack(spacing: 0) {
             HStack {
                 PageHeader(title: "Range Builder", subtitle: "Know what the top 10, 15 or 20% of hands looks like, and what each player type actually plays.") {
-                    Picker("", selection: $mode) {
-                        Text("Builder").tag(0)
-                        Text("Quiz").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
+                    BlockTabs(selection: $mode, options: [(0, "Builder"), (1, "Quiz")])
                 }
             }
             .padding(20)
@@ -120,12 +115,13 @@ private struct BuilderPane: View {
                 VStack(alignment: .leading, spacing: 10) {
                     RangeMatrix(range: $range, showRank: showRank)
                     HStack(spacing: 14) {
-                        legend(Theme.red, "In range")
+                        legend(Theme.text, "In range")
                         legend(Theme.surface3, "Pairs")
                         Text("Upper right = suited, lower left = offsuit. Click or drag to paint.")
-                            .font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                            .font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                         Spacer()
-                        Toggle("Show rank %", isOn: $showRank).toggleStyle(.checkbox).font(.system(size: 11))
+                        Button(showRank ? "Hide rank %" : "Show rank %") { showRank.toggle() }
+                            .buttonStyle(PillButtonStyle(color: Theme.surface3, prominent: showRank, small: true))
                     }
                 }
                 .fixedSize()
@@ -135,7 +131,7 @@ private struct BuilderPane: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(String(format: "%.1f%%", Double(combos) / 13.26)).font(Theme.mono(26))
-                                Text("of hands · \(combos) combos").font(.system(size: 12)).foregroundStyle(Theme.textDim)
+                                Text("of hands · \(combos) combos").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                             }
                             let pairs = range.filter(\.isPair).reduce(0) { $0 + $1.combos }
                             let suited = range.filter(\.suited).reduce(0) { $0 + $1.combos }
@@ -147,9 +143,7 @@ private struct BuilderPane: View {
                         VStack(alignment: .leading, spacing: 8) {
                             SectionLabel("Top X% of hands")
                             HStack {
-                                Slider(value: $topPct, in: 1...100, step: 1) { editing in
-                                    if !editing { range = RangeModel.standard.top(topPct / 100) }
-                                }
+                                BlockSlider(value: $topPct, range: 1...100, step: 1) { range = RangeModel.standard.top(topPct / 100) }
                                 Text("\(Int(topPct))%").font(Theme.mono(13)).frame(width: 40, alignment: .trailing)
                             }
                             HStack(spacing: 5) {
@@ -162,14 +156,14 @@ private struct BuilderPane: View {
                                 }
                             }
                             Text("Ranked by all-in equity vs 1 and 3 random hands, since live pots are often multiway.")
-                                .font(.system(size: 10.5)).foregroundStyle(Theme.textDim)
+                                .font(Theme.ui(10.5)).foregroundStyle(Theme.textDim)
                         }
                     }
                     Panel {
                         VStack(alignment: .leading, spacing: 8) {
                             SectionLabel("Notation")
                             TextEditor(text: $notation)
-                                .font(.system(size: 12, design: .monospaced))
+                                .font(Theme.mono(12, .regular))
                                 .scrollContentBackground(.hidden)
                                 .padding(6)
                                 .frame(height: 64)
@@ -192,25 +186,15 @@ private struct BuilderPane: View {
                         VStack(alignment: .leading, spacing: 8) {
                             SectionLabel("How the table plays (first in)")
                             HStack {
-                                Picker("", selection: $simType) { ForEach(PlayerType.allCases) { Text($0.name).tag($0) } }.labelsHidden()
-                                Picker("", selection: $simPos) {
-                                    ForEach([Position.utg, .utg1, .mp, .lj, .hj, .co, .btn, .sb], id: \.self) { Text($0.short).tag($0) }
-                                }
-                                .labelsHidden()
-                                .frame(width: 80)
+                                BlockMenu(label: "TYPE", selection: $simType, options: PlayerType.allCases.map { ($0, $0.name) })
+                                BlockMenu(label: "SEAT", selection: $simPos, options: [Position.utg, .utg1, .mp, .lj, .hj, .co, .btn, .sb].map { ($0, $0.short) })
                             }
-                            Picker("", selection: $simAction) {
-                                Text("Open-raise").tag(0)
-                                Text("Limp").tag(1)
-                                Text("All VPIP").tag(2)
-                            }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
+                            BlockTabs(selection: $simAction, options: [(0, "Open-raise"), (1, "Limp"), (2, "All VPIP")])
                             let r = BotBrain.unopenedRanges(profile: Profile.base(simType), position: simPos)
                             Text("\(simType.name) from \(simPos.short): raises \(pct(r.raise)), limps \(pct(r.limp)).")
-                                .font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                                .font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                             Button("Load range") { range = simAction == 0 ? r.raise : (simAction == 1 ? r.limp : r.raise.union(r.limp)) }
-                                .buttonStyle(PillButtonStyle(color: Theme.red, small: true))
+                                .buttonStyle(PillButtonStyle(small: true))
                         }
                     }
                     Panel {
@@ -230,7 +214,7 @@ private struct BuilderPane: View {
                                 HStack {
                                     Button(name) { if let r = RangeParser.parse(app.store.progress.savedRanges[name] ?? "") { range = r } }
                                         .buttonStyle(.plain)
-                                        .font(.system(size: 12))
+                                        .font(Theme.ui(12))
                                     Spacer()
                                     Button { app.store.deleteRange(name) } label: { Image(systemName: "xmark") }
                                         .buttonStyle(.plain)
@@ -238,7 +222,7 @@ private struct BuilderPane: View {
                                 }
                             }
                             if app.store.progress.savedRanges.isEmpty {
-                                Text("None yet.").font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                                Text("None yet.").font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                             }
                         }
                     }
@@ -259,7 +243,7 @@ private struct BuilderPane: View {
     func legend(_ c: Color, _ t: String) -> some View {
         HStack(spacing: 4) {
             Rectangle().fill(c).frame(width: 10, height: 10)
-            Text(t).font(.system(size: 11)).foregroundStyle(Theme.textDim)
+            Text(t).font(Theme.ui(11)).foregroundStyle(Theme.textDim)
         }
     }
 }
@@ -290,14 +274,7 @@ private struct RangeQuizPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Picker("", selection: $kind) {
-                    Text("Paint the top X%").tag(0)
-                    Text("In or out?").tag(1)
-                    Text("Name the %").tag(2)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 420)
+                BlockTabs(selection: $kind, options: [(0, "Paint the top X%"), (1, "In or out?"), (2, "Name the %")])
                 switch kind {
                 case 0: paintQuiz
                 case 1: inOutQuiz
@@ -322,7 +299,7 @@ private struct RangeQuizPane: View {
     var paintQuiz: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Paint the top \(Int(target))% of hands").font(.system(size: 16, weight: .semibold))
+                Text("Paint the top \(Int(target))% of hands").font(Theme.ui(16, .semibold))
                 RangeMatrix(range: $painted, editable: !submitted, target: submitted ? RangeModel.standard.top(target / 100) : nil)
                 if submitted {
                     HStack(spacing: 14) {
@@ -341,16 +318,16 @@ private struct RangeQuizPane: View {
                         let score = paintScore
                         Text(String(format: "Overlap %.0f%%", score * 100)).font(Theme.mono(22)).foregroundStyle(score >= 0.85 ? Theme.good : Theme.warn)
                         Text(score >= 0.85 ? "Nice. That's close enough to use at the table." : "Compare the missed and extra cells. Small pairs and offsuit broadways are the usual misses.")
-                            .font(.system(size: 12)).foregroundStyle(Theme.textDim)
+                            .font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                         Text("Answer: \(RangeParser.compact(RangeModel.standard.top(target / 100)))")
-                            .font(.system(size: 11, design: .monospaced)).foregroundStyle(Color(white: 0.8)).textSelection(.enabled)
-                        Button("Next  →") { newPaint() }.buttonStyle(PillButtonStyle(color: Theme.red)).keyboardShortcut(.return, modifiers: [])
+                            .font(Theme.mono(11, .regular)).foregroundStyle(Color(white: 0.8)).textSelection(.enabled)
+                        Button("Next  →") { newPaint() }.buttonStyle(PillButtonStyle()).keyboardShortcut(.return, modifiers: [])
                     } else {
                         Button("Submit") {
                             submitted = true
                             app.store.recordRangeQuiz("paint", correct: paintScore >= 0.85)
                         }
-                        .buttonStyle(PillButtonStyle(color: Theme.red))
+                        .buttonStyle(PillButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
                         Button("Clear") { painted = [] }.buttonStyle(PillButtonStyle(prominent: false))
                     }
@@ -371,13 +348,13 @@ private struct RangeQuizPane: View {
     var inOutQuiz: some View {
         Panel {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Is this hand in the top \(probePct)%?").font(.system(size: 16, weight: .semibold))
+                Text("Is this hand in the top \(probePct)%?").font(Theme.ui(16, .semibold))
                 HStack(spacing: 6) {
                     ForEach(probeCards, id: \.self) { CardView(card: $0, width: 64, fourColor: app.settings.fourColor) }
                     Text(probeHand.description).font(Theme.mono(22)).padding(.leading, 10)
                 }
                 HStack(spacing: 8) {
-                    Button("In") { answerProbe(true) }.buttonStyle(PillButtonStyle(color: Theme.red, large: true)).keyboardShortcut("y", modifiers: [])
+                    Button("In") { answerProbe(true) }.buttonStyle(PillButtonStyle(large: true)).keyboardShortcut("y", modifiers: [])
                         .disabled(probeAnswer != nil)
                     Button("Out") { answerProbe(false) }.buttonStyle(PillButtonStyle(prominent: false, large: true)).keyboardShortcut("n", modifiers: [])
                         .disabled(probeAnswer != nil)
@@ -388,10 +365,10 @@ private struct RangeQuizPane: View {
                     let p = RangeModel.standard.percentile(of: probeHand)
                     let isIn = p <= Double(probePct) / 100
                     let rank = (RangeModel.standard.order.firstIndex(of: probeHand) ?? 0) + 1
-                    Text(a == isIn ? "Correct." : "Wrong.").font(.system(size: 14, weight: .semibold)).foregroundStyle(a == isIn ? Theme.good : Theme.bad)
+                    Text(a == isIn ? "Correct." : "Wrong.").font(Theme.ui(14, .semibold)).foregroundStyle(a == isIn ? Theme.good : Theme.bad)
                     Text("\(probeHand) is hand #\(rank) of 169. The top \(String(format: "%.1f", p * 100))% of hands includes it, so it's \(isIn ? "in" : "out") at \(probePct)%.")
-                        .font(.system(size: 12)).foregroundStyle(Color(white: 0.8))
-                    Button("Next  →") { newProbe() }.buttonStyle(PillButtonStyle(color: Theme.red)).keyboardShortcut(.return, modifiers: [])
+                        .font(Theme.ui(12)).foregroundStyle(Color(white: 0.8))
+                    Button("Next  →") { newProbe() }.buttonStyle(PillButtonStyle()).keyboardShortcut(.return, modifiers: [])
                 }
             }
         }
@@ -420,7 +397,7 @@ private struct RangeQuizPane: View {
     var nameQuiz: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("What percentage of hands is this?").font(.system(size: 16, weight: .semibold))
+                Text("What percentage of hands is this?").font(Theme.ui(16, .semibold))
                 RangeMatrix(range: .constant(RangeModel.standard.top(Double(namePct) / 100)), editable: false, cellWidth: 38, cellHeight: 28)
             }
             .fixedSize()
@@ -439,9 +416,9 @@ private struct RangeQuizPane: View {
                         }
                     }
                     if let p = namePick {
-                        Text(p == namePct ? "Correct." : "It's the top \(namePct)%.").font(.system(size: 13, weight: .semibold))
+                        Text(p == namePct ? "Correct." : "It's the top \(namePct)%.").font(Theme.ui(13, .semibold))
                             .foregroundStyle(p == namePct ? Theme.good : Theme.bad)
-                        Button("Next  →") { newName() }.buttonStyle(PillButtonStyle(color: Theme.red)).keyboardShortcut(.return, modifiers: [])
+                        Button("Next  →") { newName() }.buttonStyle(PillButtonStyle()).keyboardShortcut(.return, modifiers: [])
                     }
                 }
             }
@@ -457,7 +434,7 @@ private struct RangeQuizPane: View {
     func legendBox(_ c: Color, _ t: String) -> some View {
         HStack(spacing: 4) {
             Rectangle().fill(c).frame(width: 10, height: 10)
-            Text(t).font(.system(size: 11)).foregroundStyle(Theme.textDim)
+            Text(t).font(Theme.ui(11)).foregroundStyle(Theme.textDim)
         }
     }
 }

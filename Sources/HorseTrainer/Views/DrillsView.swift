@@ -18,10 +18,10 @@ struct SpotScene: View {
                 Avatar(name: villainName, hue: Double(villainName.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 100) / 100, size: 40)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(villainName).font(.system(size: 15, weight: .semibold))
+                        Text(villainName).font(Theme.ui(15, .semibold))
                         TypeBadge(type: villainType)
                     }
-                    if let a = villainAppearance { Text(a).font(.system(size: 12)).foregroundStyle(Theme.textDim) }
+                    if let a = villainAppearance { Text(a).font(Theme.ui(12)).foregroundStyle(Theme.textDim) }
                 }
                 Spacer()
                 VStack(alignment: .trailing) {
@@ -34,7 +34,7 @@ struct SpotScene: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(history, id: \.self) { line in
-                    Text(line).font(.system(size: 13)).foregroundStyle(Color(white: 0.85))
+                    Text(line).font(Theme.ui(13)).foregroundStyle(Color(white: 0.85))
                 }
             }
             HStack(alignment: .bottom, spacing: 28) {
@@ -82,11 +82,11 @@ struct DrillsView: View {
                             HStack {
                                 SectionLabel(d.concept.title)
                                 Spacer()
-                                Text("\(d.heroPosition.short) vs \(d.villainPosition.short) · eff. $\(d.effectiveStack)").font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                                Text("\(d.heroPosition.short) vs \(d.villainPosition.short) · eff. $\(d.effectiveStack)").font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                             }
                             SpotScene(villainName: d.villainName, villainType: d.villainType, villainAppearance: d.villainAppearance, history: d.history,
                                       board: d.board, heroCards: d.heroCards, pot: d.pot, bet: d.villainBet)
-                            Text(d.prompt).font(.system(size: 15, weight: .semibold))
+                            Text(d.prompt).font(Theme.ui(15, .semibold))
                             HStack(spacing: 10) {
                                 ForEach(d.options.indices, id: \.self) { i in
                                     Button { answer(i, d) } label: { Text(d.options[i]).frame(minWidth: 90) }
@@ -102,21 +102,20 @@ struct DrillsView: View {
             }
             .padding(20)
         }
-        .onAppear { if drill == nil { next() } }
+        .onAppear {
+            if let c = app.drillConcept {
+                concept = c
+                app.drillConcept = nil
+            }
+            if drill == nil { next() }
+        }
     }
 
     var header: some View {
         PageHeader(title: "Exploit Drills", subtitle: "Same spot, different villain, different answer. Learn what each type's action means.") {
-            Picker("Concept", selection: $concept) {
-                Text("All concepts").tag(DrillConcept?.none)
-                ForEach(DrillConcept.allCases) { Text($0.title).tag(DrillConcept?.some($0)) }
-            }
-            .frame(width: 220)
-            Picker("Villain", selection: $type) {
-                Text("Any type").tag(PlayerType?.none)
-                ForEach(PlayerType.allCases) { Text($0.name).tag(PlayerType?.some($0)) }
-            }
-            .frame(width: 170)
+            BlockMenu(label: "CONCEPT", selection: $concept,
+                      options: [(DrillConcept?.none, "All")] + DrillConcept.allCases.map { (DrillConcept?.some($0), $0.title) })
+            BlockMenu(label: "VILLAIN", selection: $type, options: [(PlayerType?.none, "Any")] + PlayerType.allCases.map { (PlayerType?.some($0), $0.name) })
             StatBox(label: "Session", value: "\(sessionCorrect)/\(sessionTotal) · streak \(streak)")
         }
         .onChange(of: concept) { next() }
@@ -148,18 +147,18 @@ struct DrillsView: View {
         let ok = d.correct.contains(picked!)
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(ok ? "Correct" : "Not quite").font(.system(size: 15, weight: .semibold)).foregroundStyle(ok ? Theme.good : Theme.bad)
+                Text(ok ? "Correct" : "Not quite").font(Theme.ui(15, .semibold)).foregroundStyle(ok ? Theme.good : Theme.bad)
                 Text("Best: \(d.correct.sorted().map { d.options[$0] }.joined(separator: " or "))").foregroundStyle(Theme.textDim)
             }
-            Text(d.explanation).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+            Text(d.explanation).font(Theme.ui(13)).fixedSize(horizontal: false, vertical: true)
             PrincipleCard(principle: d.principle)
             VStack(alignment: .leading, spacing: 6) {
-                Text("SAME SPOT VS EACH TYPE").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.textDim)
+                Text("SAME SPOT VS EACH TYPE").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
                 ForEach(d.perType, id: \.type) { row in
                     HStack(alignment: .top, spacing: 10) {
                         TypeBadge(type: row.type, small: true).frame(width: 110, alignment: .leading)
-                        Text(row.answer).font(.system(size: 12, weight: .semibold)).frame(width: 130, alignment: .leading)
-                        Text(row.why).font(.system(size: 11)).foregroundStyle(.white.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
+                        Text(row.answer).font(Theme.ui(12, .semibold)).frame(width: 130, alignment: .leading)
+                        Text(row.why).font(Theme.ui(11)).foregroundStyle(.white.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
                     }
                     .opacity(row.type == d.villainType ? 1 : 0.7)
                 }
@@ -172,7 +171,7 @@ struct DrillsView: View {
                     .buttonStyle(PillButtonStyle(prominent: false))
                 Spacer()
                 Button { next() } label: { Label("Next spot", systemImage: "arrow.right") }
-                    .buttonStyle(PillButtonStyle(color: Theme.accent))
+                    .buttonStyle(PillButtonStyle())
                     .keyboardShortcut(.return, modifiers: [])
             }
         }

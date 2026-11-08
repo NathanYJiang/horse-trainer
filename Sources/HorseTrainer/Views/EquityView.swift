@@ -66,7 +66,7 @@ struct EquityView: View {
 
                 Panel {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("BOARD").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.textDim)
+                        Text("BOARD").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
                         HStack(spacing: 8) {
                             ForEach(0..<5, id: \.self) { i in
                                 CardSlot(card: $board[i], used: usedCards, width: 52)
@@ -84,15 +84,15 @@ struct EquityView: View {
                     } label: {
                         Text(running ? "Calculating…" : "Calculate").frame(minWidth: 140)
                     }
-                    .buttonStyle(PillButtonStyle(color: Theme.red))
+                    .buttonStyle(PillButtonStyle())
                     .disabled(running)
                     .keyboardShortcut(.return, modifiers: [.command])
                     if running { ProgressView().controlSize(.small) }
                     if let r = result {
                         Text(r.exact ? "Exact · \(r.samples.formatted()) runouts" : "Monte Carlo · \(r.samples.formatted()) samples")
-                            .font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                            .font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                     }
-                    if let e = error { Text(e).foregroundStyle(Theme.bad).font(.system(size: 12)) }
+                    if let e = error { Text(e).foregroundStyle(Theme.bad).font(Theme.ui(12)) }
                     Spacer()
                 }
             }
@@ -167,12 +167,7 @@ struct EqPlayerRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Text("P\(index + 1)").font(Theme.mono(13)).foregroundStyle(Theme.textDim).frame(width: 28)
-            Picker("", selection: $player.mode) {
-                ForEach(EqPlayer.Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 200)
+            BlockTabs(selection: $player.mode, options: EqPlayer.Mode.allCases.map { ($0, $0.rawValue) })
             Group {
                 switch player.mode {
                 case .cards:
@@ -192,7 +187,7 @@ struct EqPlayerRow: View {
                                 RangeGrid(range: $player.range) { player.rangeText = RangeParser.format(player.range) }
                             }
                         Text("\(RangeParser.comboCount(player.range)) combos · \(String(format: "%.1f", Double(RangeParser.comboCount(player.range)) / 13.26))%")
-                            .font(.system(size: 11)).foregroundStyle(Theme.textDim)
+                            .font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                     }
                 case .random:
                     Text("Any two cards").foregroundStyle(Theme.textDim)
@@ -206,11 +201,11 @@ struct EqPlayerRow: View {
                     GeometryReader { g in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Theme.panelHi)
-                            Capsule().fill(Theme.red).frame(width: g.size.width * eq)
+                            Capsule().fill(Theme.text).frame(width: g.size.width * eq)
                         }
                     }
                     .frame(width: 160, height: 6)
-                    Text(String(format: "win %.1f%% · tie %.1f%%", win * 100, tie * 100)).font(.system(size: 10)).foregroundStyle(Theme.textDim)
+                    Text(String(format: "win %.1f%% · tie %.1f%%", win * 100, tie * 100)).font(Theme.ui(10)).foregroundStyle(Theme.textDim)
                 }
             }
             if canRemove {
@@ -288,10 +283,10 @@ struct RangeGrid: View {
                                 onChange()
                             } label: {
                                 Text(h.description)
-                                    .font(.system(size: 9, weight: .medium))
+                                    .font(Theme.ui(9, .medium))
                                     .frame(width: 32, height: 24)
-                                    .background(RoundedRectangle(cornerRadius: 3).fill(on ? Theme.red : (h.isPair ? Theme.panelHi : (h.suited ? Theme.panel : Color(white: 0.09)))))
-                                    .foregroundStyle(on ? .white : .white.opacity(0.7))
+                                    .background(RoundedRectangle(cornerRadius: 3).fill(on ? Theme.text : (h.isPair ? Theme.surface3 : Theme.surface2)))
+                                    .foregroundStyle(on ? Theme.onPrimary : Theme.textDim)
                             }
                             .buttonStyle(.plain)
                         }
@@ -299,8 +294,8 @@ struct RangeGrid: View {
                 }
             }
             HStack {
-                Text("Top \(Int(topPct))%").font(.system(size: 11)).frame(width: 60)
-                Slider(value: $topPct, in: 1...100, step: 1)
+                Text("Top \(Int(topPct))%").font(Theme.ui(11)).frame(width: 60)
+                BlockSlider(value: $topPct, range: 1...100, step: 1)
                 Button("Fill") {
                     range = Set(HandClass.all.filter { RangeModel.standard.inTop(topPct / 100, $0) })
                     onChange()
