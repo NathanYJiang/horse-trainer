@@ -278,3 +278,28 @@ import Testing
         #expect(nitCalls <= 10)
     }
 }
+
+@Suite struct SpotFinderTests {
+    @Test func everySpotIsReachable() {
+        for seats in [6, 9] {
+            let session = TableSession(preset: .typical, seats: seats, seed: 42)
+            for kind in SpotKind.allCases {
+                let found = SpotFinder.find(kind, against: nil, from: session)
+                #expect(found != nil, "\(kind) not found at \(seats)-handed")
+                if let f = found {
+                    #expect(f.hand.currentSeat == TableSession.heroSeat)
+                    #expect(SpotFinder.match(kind, state: f.hand, hero: TableSession.heroSeat) != nil)
+                    print("SPOT \(seats) \(kind.rawValue): \(f.attempts) hands")
+                }
+            }
+        }
+    }
+
+    @Test func villainFilterHolds() {
+        let session = TableSession(preset: .typical, seed: 7)
+        for t in [PlayerType.fish, .nit] {
+            guard let f = SpotFinder.find(.facingCbet, against: t, from: session) else { continue }
+            #expect(f.villains.allSatisfy { f.session.bot(at: $0)?.type == t })
+        }
+    }
+}

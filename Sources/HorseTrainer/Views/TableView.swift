@@ -248,25 +248,70 @@ struct ActionBar: View {
         HStack(spacing: 12) {
             if let legal = game.legal, let h = game.hand {
                 controls(legal, h)
+            } else if game.findingSpot {
+                ProgressView().controlSize(.small)
+                Text("Dealing until: \(game.spotKind.title)…").font(Theme.ui(12.5)).foregroundStyle(Theme.textDim)
+                Spacer()
             } else if game.hand?.isComplete ?? true {
                 if game.heroSittingOut {
                     Text("Sitting out. Hands deal automatically.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                     Spacer()
                 } else {
+                    if let m = game.spotMessage, game.hand == nil || !game.currentHandIsSpot {
+                        Text(m).font(Theme.ui(12)).foregroundStyle(Theme.warn)
+                    }
                     Spacer()
-                    Button { game.dealNext() } label: { Text("Deal Next Hand").frame(minWidth: 180) }
+                    autoDealToggle
+                    Button { game.dealNext() } label: { Text(game.spotMode ? "Next spot" : "Deal next hand").frame(minWidth: 180) }
                         .buttonStyle(PillButtonStyle(large: true))
                         .keyboardShortcut(.space, modifiers: [])
                 }
-            } else {
-                Text(game.heroInCurrentHand ? "Waiting for other players…" : "Hand in progress…").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+            } else if game.heroInCurrentHand {
+                Text("Waiting for other players…").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                 Spacer()
+                premoves
+            } else {
+                Text(game.heroSittingOut ? "Sitting out. Hands deal automatically." : "You're out of this hand.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+                Spacer()
+                if !game.heroSittingOut {
+                    autoDealToggle
+                    Button { game.skipToNextHand() } label: { Text(game.spotMode ? "Skip to next spot" : "Skip to next hand").frame(minWidth: 180) }
+                        .buttonStyle(PillButtonStyle(large: true))
+                        .keyboardShortcut(.space, modifiers: [])
+                }
             }
         }
         .padding(.horizontal, 16)
         .frame(height: 92)
         .background(Theme.surface)
         .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
+    }
+
+    @Environment(AppModel.self) private var app
+
+    var autoDealToggle: some View {
+        PreToggle(title: "Auto-deal", on: app.settings.autoDeal) { app.settings.autoDeal.toggle() }
+            .help("Deal the next hand automatically a moment after each hand ends")
+    }
+
+    /// Pre-select an action while others are still acting. F / C work as shortcuts.
+    @ViewBuilder var premoves: some View {
+        let toCall = game.hand.flatMap { h in h.player(seat: game.heroSeat).map { max(0, h.currentBet - $0.committedStreet) } } ?? 0
+        HStack(spacing: 6) {
+            SectionLabel("Pre-act").padding(.trailing, 4)
+            PreToggle(title: toCall > 0 ? "Fold" : "Check/Fold", on: game.premove == .checkFold) { toggle(.checkFold) }
+                .keyboardShortcut("f", modifiers: [])
+            if toCall == 0 {
+                PreToggle(title: "Check", on: game.premove == .check) { toggle(.check) }
+                    .keyboardShortcut("k", modifiers: [])
+            }
+            PreToggle(title: toCall > 0 ? "Call any" : "Check/Call any", on: game.premove == .callAny) { toggle(.callAny) }
+                .keyboardShortcut("c", modifiers: [])
+        }
+    }
+
+    func toggle(_ p: Premove) {
+        game.premove = game.premove == p ? nil : p
     }
 
     @ViewBuilder
@@ -322,9 +367,6 @@ struct ActionBar: View {
                     if let sub { Text(sub).font(Theme.mono(12.5, .semibold)) }
                 }
                 Spacer(minLength: 0)
-                Text(String(key.character).uppercased())
-                    .font(Theme.mono(10))
-                    .foregroundStyle(primary ? Theme.onPrimary.opacity(0.5) : Theme.textFaint)
             }
             .padding(.horizontal, 12)
             .frame(width: 128, height: 44)
@@ -380,5 +422,32 @@ struct ActionBar: View {
         }
         out.append(Preset(label: "Max", to: legal.maxRaiseTo))
         return out
+    }
+}
+
+/// Checkbox-style chip used for pre-actions.
+struct PreToggle: View {
+    let title: String
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                RoundedRectangle(cornerRadius: 3)
+                    .strokeBorder(on ? Theme.text : Theme.borderStrong, lineWidth: 1.5)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(on ? Theme.text : .clear).padding(3))
+                    .frame(width: 13, height: 13)
+                Text(title).font(Theme.ui(12.5, .medium)).foregroundStyle(on ? Theme.text : Theme.textDim)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(RoundedRectangle(cornerRadius: Theme.radiusSm).fill(on ? Theme.surface3 : Theme.surface2))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(on ? Theme.borderStrong : Theme.border))
+            .contentShape(Rectangle())
+            .animation(.easeOut(duration: 0.12), value: on)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
     }
 }

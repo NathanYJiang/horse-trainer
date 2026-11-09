@@ -35,6 +35,27 @@ enum Snapshot {
             RangeMatrix(range: .constant(RangeModel.standard.top(0.15)), target: RangeModel.standard.top(0.2))
         }.padding(20).environment(app), size: CGSize(width: 1300, height: 560), to: dir.appendingPathComponent("ranges.png"))
         render(VStack { ReadsPanel(game: app.live) ; Spacer() }.padding(.top, 20).environment(app), size: CGSize(width: 380, height: 1400), to: dir.appendingPathComponent("reads.png"))
+        render(VStack(alignment: .leading, spacing: 18) {
+            StreakHero(store: app.store)
+            HStack(spacing: 10) {
+                GymStat(icon: "bolt.fill", color: Theme.duoGold, value: "1240", label: "Total XP")
+                GymStat(icon: "shield.lefthalf.filled", color: Theme.duoPurple, value: "Lv 4", label: "Grinder")
+                GymStat(icon: "flame.fill", color: Theme.flame, value: "7", label: "Best combo")
+            }
+            HStack(spacing: 10) {
+                Button("Fold") {}.buttonStyle(AnswerTileStyle(state: .idle))
+                Button("Call") {}.buttonStyle(AnswerTileStyle(state: .correct))
+                Button("Raise") {}.buttonStyle(AnswerTileStyle(state: .wrong))
+                Button("Jam") {}.buttonStyle(AnswerTileStyle(state: .faded))
+            }
+            HStack(spacing: 12) {
+                Button("START WORKOUT") {}.buttonStyle(ChunkyButtonStyle())
+                Button("CONTINUE") {}.buttonStyle(ChunkyButtonStyle(color: Theme.duoRed, ledge: Theme.duoRedDark))
+                Button("BACK") {}.buttonStyle(ChunkyButtonStyle(color: Theme.surface3, ledge: Theme.surface2, textColor: Theme.text))
+            }
+            LevelBar(store: app.store).frame(width: 440)
+            ActionBar(game: app.live)
+        }.padding(24).environment(app), size: CGSize(width: 1100, height: 700), to: dir.appendingPathComponent("gym.png"))
         exit(0)
     }
 

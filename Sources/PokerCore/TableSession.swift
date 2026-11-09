@@ -136,18 +136,26 @@ public struct TableSession: Sendable {
                          buttonSeat: button, straddle: straddle, rng: &rng)
     }
 
+    /// Spot practice: puts the button on a random seat so the hero sees every position.
+    public mutating func moveButtonRandomly() {
+        button = Int.random(in: 0..<seatCount, using: &rng)
+    }
+
     public mutating func botDecision(_ state: HandState) -> Decision? {
         guard let seat = state.currentSeat, let bot = bot(at: seat) else { return nil }
         return BotBrain.decide(state: state, seat: seat, profile: bot.profile, rng: &rng)
     }
 
     /// Applies the finished hand: stacks, reads, hero stats, and bot rebuys / table changes.
-    public mutating func finishHand(_ state: HandState) {
+    /// `trackHero: false` keeps the hand out of the hero's own stats (spot practice, where an autopilot played the early streets).
+    public mutating func finishHand(_ state: HandState, trackHero: Bool = true) {
         guard let result = state.result else { return }
         for p in state.players {
             seats[p.seat].stack = p.stack
         }
-        tracker.record(state, ids: idsBySeat)
+        var ids = idsBySeat
+        if !trackHero { ids = ids.filter { $0.value != Self.heroID } }
+        tracker.record(state, ids: ids)
         if let hero = state.players.first(where: { seats[$0.seat].occupant == .hero }) {
             stats.hands += 1
             stats.net += result.net[hero.seat] ?? 0

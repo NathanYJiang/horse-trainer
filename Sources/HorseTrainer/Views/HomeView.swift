@@ -15,7 +15,7 @@ struct HomeView: View {
                 }
                 HStack(alignment: .top, spacing: 16) {
                     workoutCard
-                    streakCard.frame(width: 330)
+                    streakCard.frame(width: 360)
                 }
                 loop
                 HStack(alignment: .top, spacing: 16) {
@@ -43,24 +43,26 @@ struct HomeView: View {
                     .tracking(-0.2)
                 Text("About 8 minutes. Spots you miss come back more often until you stop missing them.")
                     .font(Theme.ui(13)).foregroundStyle(Theme.textDim)
-                HStack(spacing: 4) {
-                    ForEach(0..<20, id: \.self) { i in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(i < store.repsToday ? Theme.text : Theme.surface3)
-                            .frame(height: 6)
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.surface3)
+                        Capsule().fill(Theme.duoGreen)
+                            .frame(width: g.size.width * min(1, CGFloat(store.repsToday) / 20))
+                            .opacity(store.repsToday > 0 ? 1 : 0)
                     }
                 }
+                .frame(height: 12)
                 HStack(spacing: 8) {
                     Button {
                         if app.workout == nil || app.workout?.finished == true { app.workout = WorkoutSession(store: store) }
                         app.screen = .workout
                     } label: {
-                        HStack(spacing: 8) { Text(app.workout != nil && app.workout?.finished == false ? "Resume workout" : "Start workout"); Kbd("⏎") }
+                        Text(app.workout != nil && app.workout?.finished == false ? "RESUME WORKOUT" : "START WORKOUT").frame(minWidth: 200)
                     }
-                    .buttonStyle(PillButtonStyle(large: true))
+                    .buttonStyle(ChunkyButtonStyle())
                     .keyboardShortcut(.return, modifiers: [])
-                    Button("Sit at a table") { app.screen = .live }
-                        .buttonStyle(PillButtonStyle(prominent: false, large: true))
+                    Button("SIT AT A TABLE") { app.screen = .live }
+                        .buttonStyle(ChunkyButtonStyle(color: Theme.surface3, ledge: Theme.surface2, textColor: Theme.text))
                 }
             }
         }
@@ -69,12 +71,14 @@ struct HomeView: View {
     var streakCard: some View {
         Panel(padding: 20) {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("\(store.streak)").font(Theme.mono(40, .semibold))
-                    Text("day streak").font(Theme.ui(13)).foregroundStyle(Theme.textDim)
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "flame.fill").font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(store.streak > 0 ? Theme.flame : Theme.textFaint)
+                    Text("\(store.streak)").font(Theme.mono(40, .semibold)).foregroundStyle(store.streak > 0 ? Theme.flame : Theme.text)
+                    Text("day streak").font(Theme.ui(13, .semibold)).foregroundStyle(Theme.textDim)
                     Spacer()
                 }
-                ActivityGrid(days: Set(store.progress.activeDays), weeks: 18)
+                WeekRow(days: Set(store.progress.activeDays))
                 LevelBar(store: store)
             }
         }

@@ -52,16 +52,32 @@ struct RootView: View {
                     .frame(width: 224)
                 Rectangle().fill(Theme.border).frame(width: 1).ignoresSafeArea()
                 detail
+                    .id(app.screen)
+                    .transition(.opacity)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.top, 8)
             }
             if let m = app.modal { modalLayer(m) }
+            navKeys
             if let chat = app.chat { ChatDrawer(chat: chat) }
             if app.showOnboarding { OnboardingView().transition(.opacity) }
         }
+        .animation(.easeOut(duration: 0.14), value: app.screen)
         .animation(.easeOut(duration: 0.18), value: app.modal?.id)
         .animation(.easeOut(duration: 0.18), value: app.chat?.id)
         .animation(.easeOut(duration: 0.2), value: app.showOnboarding)
+    }
+
+    /// Hidden ⌘↑ / ⌘↓ to move through the sidebar.
+    var navKeys: some View {
+        ZStack {
+            Button("") { app.moveScreen(-1) }.keyboardShortcut(.upArrow, modifiers: .command)
+            Button("") { app.moveScreen(1) }.keyboardShortcut(.downArrow, modifiers: .command)
+        }
+        .buttonStyle(.plain)
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder var detail: some View {
@@ -132,15 +148,16 @@ struct Sidebar: View {
 
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("\(app.store.streak)d streak").font(Theme.mono(11, .medium))
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill").font(.system(size: 12)).foregroundStyle(app.store.streak > 0 ? Theme.flame : Theme.textFaint)
+                    Text("\(app.store.streak)").font(Theme.mono(12, .semibold)).foregroundStyle(app.store.streak > 0 ? Theme.flame : Theme.textDim)
                     Spacer()
                     Text("Lv \(app.store.level) · \(app.store.levelTitle)").font(Theme.mono(11)).foregroundStyle(Theme.textDim)
                 }
                 GeometryReader { g in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2).fill(Theme.surface3)
-                        RoundedRectangle(cornerRadius: 2).fill(Theme.text).frame(width: g.size.width * min(1, max(0, app.store.levelProgress)))
+                        RoundedRectangle(cornerRadius: 2).fill(Theme.duoPurple).frame(width: g.size.width * min(1, max(0, app.store.levelProgress)))
                     }
                 }
                 .frame(height: 4)
@@ -152,9 +169,6 @@ struct Sidebar: View {
             HStack(spacing: 2) {
                 footerButton("Guide", "questionmark.circle") { app.showOnboarding = true }
                 footerButton("Settings", "gearshape", active: app.screen == .settings) { app.screen = .settings }
-                Circle().fill(app.settings.hasKey ? Theme.good : Theme.textFaint).frame(width: 6, height: 6)
-                    .padding(.horizontal, 8)
-                    .help(app.settings.hasKey ? "Claude coach connected" : "Claude coach: add a key in Settings")
             }
             .padding(10)
         }
@@ -178,8 +192,6 @@ struct Sidebar: View {
                     Text(badge).font(Theme.mono(9.5)).foregroundStyle(Theme.bg)
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background(RoundedRectangle(cornerRadius: 3).fill(Theme.text))
-                } else if let k = s.shortcut {
-                    Text("⌘\(String(k.character))").font(Theme.mono(10)).foregroundStyle(Theme.textFaint)
                 }
             }
             .foregroundStyle(active ? Theme.text : Theme.textDim)

@@ -15,6 +15,16 @@ struct HandRecord: Identifiable {
     let coachText: String
 }
 
+enum Premove: Equatable {
+    case checkFold, check, callAny
+}
+
+struct SpotScore {
+    var spots = 0
+    var good = 0
+    var bad = 0
+}
+
 struct QuizRow: Identifiable {
     var id: UUID { bot.id }
     let bot: BotPlayer
@@ -48,6 +58,19 @@ final class GameController {
     var playerNotes: [UUID: String] = [:]
     private var loopTask: Task<Void, Never>?
     private var dealTask: Task<Void, Never>?
+
+    /// Pre-selected action that fires as soon as it's the hero's turn.
+    var premove: Premove?
+
+    /// Spot practice: `.any` plays full hands; anything else fast-forwards to that situation.
+    var spotKind: SpotKind = .any
+    var spotVillain: PlayerType?
+    private(set) var findingSpot = false
+    private(set) var spotMessage: String?
+    private(set) var spotVillains: [Int] = []
+    private(set) var spotScore = SpotScore()
+    private(set) var currentHandIsSpot = false
+    var spotMode: Bool { spotKind != .any }
 
     let heroSeat = TableSession.heroSeat
 
@@ -98,18 +121,70 @@ final class GameController {
         playerNotes = [:]
         quiz = nil
         showHUD = false
+        premove = nil
+        spotScore = SpotScore()
+        spotMessage = nil
+        spotVillains = []
     }
 
     func dealNext() {
-        guard !handInProgress else { return }
+        guard !handInProgress, !findingSpot else { return }
         dealTask?.cancel()
+        premove = nil
         session.heroStraddles = settings.heroStraddles
+        if spotMode && !heroSittingOut {
+            dealSpot()
+            return
+        }
+        currentHandIsSpot = false
+        spotVillains = []
         let h = session.startHand(heroSittingOut: heroSittingOut)
         hand = h
         notesThisHand = []
         lastAction = [:]
         for a in h.actions where a.type == .postStraddle { lastAction[a.seat] = "Straddle $\(a.added)" }
         runLoop()
+    }
+
+    func setSpot(_ kind: SpotKind, villain: PlayerType?) {
+        spotKind = kind
+        spotVillain = villain
+        spotMessage = nil
+        if !handInProgress && kind != .any && !heroSittingOut { dealNext() }
+    }
+
+    /// Fast-forwards (off the main thread) to a hand where the hero faces the chosen spot.
+    private func dealSpot() {
+        findingSpot = true
+        spotMessage = nil
+        let base = session, kind = spotKind, villain = spotVillain
+        Task { [weak self] in
+            let found = await Task.detached(priority: .userInitiated) { SpotFinder.find(kind, against: villain, from: base) }.value
+            guard let self else { return }
+            self.findingSpot = false
+            if self.spotKind != kind || self.spotVillain != villain {
+                self.dealNext()
+                return
+            }
+            guard let found, !self.handInProgress else {
+                if found == nil { self.spotMessage = "Couldn't find that spot\(villain.map { " vs a \($0.name)" } ?? "") at this table. Try another filter or a new table." }
+                return
+            }
+            self.session = found.session
+            self.currentHandIsSpot = true
+            self.spotVillains = found.villains
+            self.notesThisHand = []
+            var bubbles: [Int: String] = [:]
+            for a in found.hand.actions where a.type.isVoluntary || a.type == .postStraddle {
+                if a.type == .fold || a.street == found.hand.street { bubbles[a.seat] = Self.bubble(a) }
+            }
+            self.lastAction = bubbles
+            self.hand = found.hand
+            let autoActs = found.hand.actions.filter { $0.seat == self.heroSeat && $0.type.isVoluntary }
+            self.spotMessage = autoActs.isEmpty ? nil
+                : "Autopilot played your earlier streets: " + autoActs.map { "\($0.street.name) \(Self.bubble($0).lowercased())" }.joined(separator: ", ") + "."
+            self.runLoop()
+        }
     }
 
     private func runLoop() {
@@ -123,6 +198,20 @@ final class GameController {
     private func advance() async {
         while let h = hand, !h.isComplete {
             if h.currentSeat == heroSeat {
+                if let pm = premove, let legal = h.legalActions() {
+                    premove = nil
+                    let d: Decision? = switch pm {
+                    case .checkFold: legal.canCheck ? .check : .fold
+                    case .check: legal.canCheck ? .check : nil
+                    case .callAny: legal.canCheck ? .check : .call
+                    }
+                    if let d {
+                        try? await Task.sleep(for: .seconds(0.25))
+                        if Task.isCancelled { return }
+                        heroAct(d)
+                    }
+                    return
+                }
                 guard Self.autopilot else { return }
                 try? await Task.sleep(for: .seconds(settings.botSpeed * 2))
                 if Task.isCancelled { return }
@@ -148,6 +237,7 @@ final class GameController {
         if s.street != streetBefore {
             // New street: clear bubbles except folds.
             lastAction = lastAction.filter { $0.value == "Fold" }
+            premove = nil
         }
     }
 
@@ -165,7 +255,17 @@ final class GameController {
 
     private func completeHandIfNeeded() {
         guard let h = hand, h.isComplete, history.first?.id != h.handNumber else { return }
-        session.finishHand(h)
+        premove = nil
+        session.finishHand(h, trackHero: !currentHandIsSpot)
+        if currentHandIsSpot {
+            spotScore.spots += 1
+            spotScore.good += notesThisHand.filter { $0.grade == .good || $0.grade == .okay }.count
+            spotScore.bad += notesThisHand.filter { $0.grade == .mistake || $0.grade == .inaccuracy }.count
+            for n in notesThisHand where n.grade != .okay {
+                store.rep("spot.\(spotKind.rawValue)", correct: n.grade == .good, xp: n.grade == .good ? 10 : 2)
+            }
+            store.save()
+        }
         for n in notesThisHand {
             switch n.grade {
             case .good: session.stats.good += 1
@@ -211,6 +311,21 @@ final class GameController {
             appendRecord(h, notes: [])
             lastAction = [:]
         }
+    }
+
+    /// Hero is out of the hand: play the rest instantly and deal the next one.
+    func skipToNextHand() {
+        guard var h = hand, !h.isComplete, !heroInCurrentHand else { return }
+        loopTask?.cancel()
+        var guardCount = 0
+        while !h.isComplete, h.currentSeat != heroSeat, let d = session.botDecision(h), guardCount < 500 {
+            h.apply(d)
+            guardCount += 1
+        }
+        hand = h
+        completeHandIfNeeded()
+        dealTask?.cancel()
+        dealNext()
     }
 
     func stopAutoDeal() {

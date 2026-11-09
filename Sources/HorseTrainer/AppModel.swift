@@ -177,6 +177,13 @@ final class AppModel {
     /// Deep link into Exploit Drills with a concept preselected.
     var drillConcept: DrillConcept?
 
+    func moveScreen(_ delta: Int) {
+        guard modal == nil, chat == nil, !showOnboarding else { return }
+        let all = Screen.allCases
+        let i = all.firstIndex(of: screen) ?? 0
+        screen = all[(i + delta + all.count) % all.count]
+    }
+
     func finishOnboarding() {
         UserDefaults.standard.set(true, forKey: "onboarded")
         showOnboarding = false

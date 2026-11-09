@@ -33,6 +33,20 @@ enum Theme {
     static let accent = Color(hex: 0x00A5EF)
     static let gold = Color(hex: 0xFCBB00)
 
+    // Gym palette (Daily Workout, streaks, XP): bright and chunky on purpose.
+    static let flame = Color(hex: 0xFF9600)
+    static let flameDark = Color(hex: 0xCC7800)
+    static let duoGreen = Color(hex: 0x58CC02)
+    static let duoGreenDark = Color(hex: 0x46A302)
+    static let duoRed = Color(hex: 0xFF4B4B)
+    static let duoRedDark = Color(hex: 0xD33131)
+    static let duoBlue = Color(hex: 0x1CB0F6)
+    static let duoBlueDark = Color(hex: 0x1490CC)
+    static let duoGold = Color(hex: 0xFFC800)
+    static let duoGoldDark = Color(hex: 0xD9A800)
+    static let duoPurple = Color(hex: 0xCE82FF)
+    static let duoPurpleDark = Color(hex: 0xA65FD6)
+
     // Table
     static let felt = Color(hex: 0x111111)
     static let rail = Color(hex: 0x1C1C1C)
@@ -276,8 +290,83 @@ struct PillButtonStyle: ButtonStyle {
                 .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(prominent ? Color.clear : Theme.border, lineWidth: 1))
                 .contentShape(Rectangle())
                 .opacity(enabled ? 1 : 0.4)
+                .scaleEffect(configuration.isPressed ? 0.97 : 1)
+                .animation(.snappy(duration: 0.12), value: configuration.isPressed)
+                .animation(.easeOut(duration: 0.12), value: hover)
                 .onHover { hover = $0 }
         }
+    }
+}
+
+/// Chunky, colorful button with a solid bottom ledge that presses down. Used in the gym.
+struct ChunkyButtonStyle: ButtonStyle {
+    var color: Color = Theme.duoGreen
+    var ledge: Color = Theme.duoGreenDark
+    var textColor: Color = .white
+    var height: CGFloat = 46
+    var fill = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        Chunky(configuration: configuration, style: self)
+    }
+
+    private struct Chunky: View {
+        let configuration: Configuration
+        let style: ChunkyButtonStyle
+        @Environment(\.isEnabled) private var enabled
+        @State private var hover = false
+
+        var body: some View {
+            let pressed = configuration.isPressed
+            let depth: CGFloat = 4
+            configuration.label
+                .font(Theme.ui(15, .bold))
+                .tracking(0.3)
+                .foregroundStyle(enabled ? style.textColor : Theme.textFaint)
+                .padding(.horizontal, 22)
+                .frame(maxWidth: style.fill ? .infinity : nil, minHeight: style.height)
+                .background(RoundedRectangle(cornerRadius: 12).fill(enabled ? style.color : Theme.surface3).brightness(hover && !pressed ? 0.04 : 0))
+                .background(RoundedRectangle(cornerRadius: 12).fill(enabled ? style.ledge : Theme.surface2).offset(y: pressed ? 0 : depth))
+                .offset(y: pressed ? depth : 0)
+                .padding(.bottom, depth)
+                .contentShape(Rectangle())
+                .animation(.snappy(duration: 0.08), value: pressed)
+                .onHover { hover = $0 }
+        }
+    }
+}
+
+/// Answer tile for workout reps: neutral until answered, then green / red.
+struct AnswerTileStyle: ButtonStyle {
+    enum State { case idle, correct, wrong, faded }
+    var state: State = .idle
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        let (fill, edge, stroke): (Color, Color, Color) = switch state {
+        case .idle: (Theme.card, Color(hex: 0x2E2E2E), Theme.borderStrong)
+        case .correct: (Theme.duoGreen.opacity(0.18), Theme.duoGreenDark, Theme.duoGreen)
+        case .wrong: (Theme.duoRed.opacity(0.18), Theme.duoRedDark, Theme.duoRed)
+        case .faded: (Theme.surface, Theme.surface2, Theme.border)
+        }
+        return configuration.label
+            .font(Theme.ui(14.5, .semibold))
+            .foregroundStyle(state == .faded ? Theme.textFaint : (state == .correct ? Theme.duoGreen : (state == .wrong ? Theme.duoRed : Theme.text)))
+            .padding(.horizontal, 16)
+            .frame(minWidth: 96, minHeight: 50)
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12).fill(edge).offset(y: pressed ? 0 : 4)
+                    RoundedRectangle(cornerRadius: 12).fill(Theme.card)
+                    RoundedRectangle(cornerRadius: 12).fill(fill)
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(stroke, lineWidth: 2))
+            .offset(y: pressed ? 4 : 0)
+            .padding(.bottom, 4)
+            .contentShape(Rectangle())
+            .animation(.snappy(duration: 0.08), value: pressed)
+            .animation(.easeOut(duration: 0.2), value: state)
     }
 }
 

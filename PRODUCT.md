@@ -77,7 +77,9 @@ Busted players either rebuy or get replaced.
 - **Analyze session**: Claude reviews the whole session. It gets your stats vs.
   a winning 1/2 profile, the leaks grouped by principle, how you adjusted to
   each type, the biggest pots, and the next drills to run.
-- Table size is adjustable from 2 to 9 players. The default is 9-max, like live 1/2.
+- Table size is adjustable from 2 to 9 players. The default is 9-max, like live 1/2; a 6-max / 9-handed toggle sits in the practice bar.
+- **Practice filter (spot mode)**: pick a real spot (limpers in front, facing an open, blind defense, facing a 3-bet, c-bet or check, facing a c-bet, turn/river bets, your bet got raised, river value, multiway) and optionally a villain type. The table fast-forwards (a solid-reg autopilot plays your earlier streets) until you face that decision, then you play the hand out and the coach grades it. Spot hands are kept out of your session stat benchmarks; results feed skill history.
+- **Pre-actions**: while others act you can pre-select Check/Fold, Check, or Call any (F / K / C). When you're out of the hand, Space skips to the next hand instantly. Auto-deal is a one-click toggle in the action bar.
 - Hand history log, with showdowns visible (the "tabled" hands you'd see live).
 
 ### 3.2 Read the Table

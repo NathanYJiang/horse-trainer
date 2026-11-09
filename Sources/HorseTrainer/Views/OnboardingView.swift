@@ -49,7 +49,7 @@ struct OnboardingView: View {
                             .keyboardShortcut(.leftArrow, modifiers: [])
                     }
                     if step < steps - 1 {
-                        Button { withAnimation { step += 1 } } label: { HStack(spacing: 8) { Text("Next"); Kbd("→") } }
+                        Button { withAnimation { step += 1 } } label: { Text("Next") }
                             .buttonStyle(PillButtonStyle())
                             .keyboardShortcut(.rightArrow, modifiers: [])
                     }
@@ -143,7 +143,7 @@ struct OnboardingView: View {
             title("Playing a session", "Types are hidden at the table, just like live. Here's the flow.")
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    bullet("Sit down", "Live Table deals 2–9 handed 1/2 with a realistic mix. Pick the table size and mix under New table.")
+                    bullet("Sit down", "Live Table deals 9-handed (or 6-max) 1/2 with a realistic mix. Use Practice to drill one spot on repeat: limpers, c-bets, facing raises.")
                     bullet("Tag players", "Open the Reads tab and tag each seat as you figure them out. Showdowns and bet sizes are your evidence.")
                     bullet("Get graded", "The Coach tab grades your key decisions against each villain's type and names the principle behind each grade.")
                     bullet("End session", "You get a report on leaks, your stats vs a winning 1/2 profile, and the drills to do next.")
@@ -153,9 +153,10 @@ struct OnboardingView: View {
                     shortcut("F", "Fold")
                     shortcut("C", "Check / call")
                     shortcut("R", "Bet / raise")
-                    shortcut("Space", "Deal next hand")
+                    shortcut("Space", "Deal / skip to next hand")
+                    shortcut("F · C", "Pre-act while others act")
                     SectionLabel("Anywhere").padding(.top, 8)
-                    shortcut("⌘1–9", "Jump between screens")
+                    shortcut("⌘↑ ⌘↓", "Move between screens")
                     shortcut("1–5", "Answer drill options")
                     shortcut("⏎", "Next spot")
                 }

@@ -25,7 +25,7 @@ struct LiveTableScreen: View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
                 topBar
-                if game.mode == .reads { readsBanner }
+                if game.mode == .reads { readsBanner } else { practiceBar }
                 PokerTableView(game: game, settings: app.settings)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 ActionBar(game: game)
@@ -116,6 +116,50 @@ struct LiveTableScreen: View {
 
     var netBox: some View {
         StatBox(label: "Net", value: (game.stats.net >= 0 ? "+$" : "-$") + "\(abs(game.stats.net))", color: game.stats.net >= 0 ? Theme.good : Theme.bad)
+    }
+
+    /// Full sessions or spot practice, plus quick table size.
+    var practiceBar: some View {
+        HStack(spacing: 10) {
+            BlockMenu(label: "PRACTICE", selection: Binding(get: { game.spotKind }, set: { game.setSpot($0, villain: game.spotVillain) }),
+                      options: SpotKind.allCases.map { ($0, $0.title) })
+            if game.spotMode {
+                BlockMenu(label: "VS", selection: Binding(get: { game.spotVillain }, set: { game.setSpot(game.spotKind, villain: $0) }),
+                          options: [(PlayerType?.none, "Anyone")] + PlayerType.allCases.map { (PlayerType?.some($0), $0.name) })
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(spotLine).font(Theme.ui(12)).foregroundStyle(Theme.textDim).lineLimit(1)
+                if game.currentHandIsSpot, game.handInProgress, let m = game.spotMessage {
+                    Text(m).font(Theme.ui(11)).foregroundStyle(Theme.textFaint).lineLimit(1)
+                }
+            }
+            .truncationMode(.tail)
+            .layoutPriority(-1)
+            Spacer(minLength: 8)
+            if game.spotMode && game.spotScore.spots > 0 {
+                Text("\(game.spotScore.spots) spots · \(game.spotScore.good) good · \(game.spotScore.bad) flagged")
+                    .font(Theme.mono(11)).foregroundStyle(Theme.textDim).fixedSize()
+            }
+            BlockTabs(selection: Binding(get: { game.session.seatCount }, set: { n in
+                guard n != game.session.seatCount else { return }
+                game.newTable(preset: game.preset, seats: n)
+                app.settings.defaultSeats = n
+            }), options: [(6, "6-max"), (9, "9-handed")])
+            .help("Live 1/2 is almost always 9-handed. 6-max gives you more decisions per hour. Changing it starts a new table.")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(Theme.bg)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+    }
+
+    var spotLine: String {
+        guard game.spotMode else { return "Every hand, folds and all. Pick a spot to drill one situation on repeat." }
+        if game.currentHandIsSpot, game.handInProgress, !game.spotVillains.isEmpty {
+            let names = game.spotVillains.compactMap { game.session.bot(at: $0)?.name }
+            return "\(game.spotKind.title) · vs \(names.prefix(3).joined(separator: ", "))"
+        }
+        return game.spotKind.detail
     }
 
     var readsBanner: some View {
