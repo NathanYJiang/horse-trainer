@@ -164,7 +164,7 @@ public enum BotBrain {
     static func postflop<R: RandomNumberGenerator>(state: HandState, seat: Int, p: Profile, rng: inout R) -> Decision {
         let legal = state.legalActions()!
         let me = state.player(seat: seat)!
-        let read = HandRead(hole: me.hole, board: state.board)
+        let read = HandRead.cached(hole: me.hole, board: state.board)
         let opps = state.opponents(of: seat).count
         let tier = read.tier(opponents: opps)
         let draw: DrawStrength = state.street == .river ? .none : read.draw

@@ -86,7 +86,7 @@ not a specific dataset.
 ### 3.1 Cash Game, Training Table and Tracker
 - **Cash Game** (tracked, label-free): the closest thing to real reps. Types are hidden with no reveal button, there is no spot filter, and the coach grades every decision but seals them until you end the session. Every hand is recorded in the Tracker. Hand reviews with Claude get only what you could see.
 - **Training Table** (training wheels): Show types, instant coaching, the practice/spot filter, per-hand Claude reviews with types. Not tracked.
-- **Tracker**: like HM/PT for the simulated pool. Cumulative winnings graph (total / showdown / non-showdown, hover crosshair), hands, net, bb/100 with a 95% interval, live-hour equivalent (30 hands/hr) and $/hr, "real or luck" variance read with hands needed to pin the win rate down, lifetime stats vs a winning 1/2 profile, results by position and by opponent type (revealed after the fact), and a session list with coach grades. Stored in `tracker.json`.
+- **Tracker**: like HM/PT for the simulated pool. Cumulative winnings graph (total / showdown / non-showdown, hover crosshair), hands, net, bb/100 with a 95% interval, live-hour equivalent (30 hands/hr) and $/hr, "real or luck" variance read with hands needed to pin the win rate down, lifetime stats vs a winning 1/2 profile, simulated EV lost and read cost (bb/100), results by position and by opponent type (revealed after the fact), and a session list with coach grades and EV lost. Stored in `tracker.json`.
 
 ### 3.1b Table details
 - 9-max table UI styled after a major online site: felt, seats, chip stacks,
@@ -97,9 +97,25 @@ not a specific dataset.
 - **Hidden reads**: types are hidden by default. You can tag any seat with your
   read and write notes. A "Reveal HUD" toggle shows each seat's true type and
   observed stats (VPIP/PFR/3B/AF/WTSD), for learning.
-- **Coach**: every hero decision is graded (✅ good / ⚠️ inaccuracy / ❌
-  mistake) against the exploit model, with the principle and a short "why".
-  Grades show after the hand, or instantly if you turn that on.
+- **Coach (fair grading)**: grades use only what you could know. Each opponent's
+  read comes from their observed VPIP/PFR with a population prior
+  (`TypeEstimate`); quirks like limp-trapping count only once you've seen them;
+  true types are used only when they're on screen (Training Table with Show
+  types, or a spot filtered to one type). Players with no read yet (<8 hands)
+  get no type-based rule notes.
+- **Simulation grader** (`SimGrader`): every hero decision except junk preflop
+  folds is played out. For each option (fold/check, call, 1–3 bet/raise sizes,
+  plus your actual size), it samples each opponent's hand weighted by how likely
+  the bot model was to take the actions they took this hand (size tells
+  included), deals random runouts, and plays the hand to the end with the
+  hero autopiloting as a solid reg. It does this three ways: **No read** (a
+  random 1/2 player: the default line), **Your read** (posterior from what you
+  saw) and **Real types**. The grade and "EV lost" come from Your read; "read
+  cost" is what perfect reads would have added. Gaps inside 2 standard errors
+  or under max($2, 3% pot) count as close. Runs in the background, one at a
+  time; in Cash Game the results stay sealed until the session report.
+- **Rule coach**: key spots also get a principle-linked note (✅ / ⚠️ / ❌)
+  with a short "why". Shown after the hand, or instantly if you turn that on.
 - **Ask Claude**: send the hand history, villain types, and coach grades to
   Claude for a deeper write-up. Follow-up questions are supported.
 - Session stats: hands, net $, bb/100, decision grade breakdown.

@@ -204,3 +204,22 @@ public enum Equity {
         return wins / Double(iterations)
     }
 }
+
+import Synchronization
+
+extension HandRead {
+    private struct Key: Hashable { let hole: UInt64, board: UInt64 }
+    private static let cache = Mutex<[Key: HandRead]>([:])
+
+    /// Same as `init`, memoized: bots and the simulator ask about the same hand on the same board thousands of times.
+    public static func cached(hole: [Card], board: [Card]) -> HandRead {
+        let k = Key(hole: mask(hole), board: mask(board))
+        if let r = cache.withLock({ $0[k] }) { return r }
+        let r = HandRead(hole: hole, board: board)
+        cache.withLock { c in
+            if c.count > 50000 { c.removeAll(keepingCapacity: true) }
+            c[k] = r
+        }
+        return r
+    }
+}

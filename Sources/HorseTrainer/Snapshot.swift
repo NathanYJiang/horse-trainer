@@ -16,6 +16,12 @@ enum Snapshot {
         render(HStack(spacing: 0) { Sidebar().frame(width: 224); Rectangle().fill(Theme.border).frame(width: 1); Spacer() }.environment(app),
                size: CGSize(width: 400, height: 900), to: dir.appendingPathComponent("sidebar.png"))
         render(LiveTableScreen(game: app.live).environment(app), size: size, to: dir.appendingPathComponent("live.png"))
+        if let h = app.live.hand, h.currentSeat == app.live.heroSeat,
+           let e = SimGrader.evaluate(state: h, heroSeat: app.live.heroSeat, chosen: h.legalActions()?.canCheck == true ? .check : .call,
+                                      lenses: app.live.simLenses(h), seed: 1) {
+            render(VStack { SimCard(eval: e); Spacer() }.padding(12).frame(width: 340).environment(app), size: CGSize(width: 340, height: 300),
+                   to: dir.appendingPathComponent("simcard.png"))
+        }
         app.live.showHUD = true
         render(PokerTableView(game: app.live, settings: app.settings).environment(app), size: CGSize(width: 860, height: 640), to: dir.appendingPathComponent("table-hud.png"))
         var rng = SplitMix64(seed: 3)

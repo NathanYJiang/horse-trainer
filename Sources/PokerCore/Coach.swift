@@ -154,11 +154,12 @@ public enum Coach {
             return nil
 
         case 1:
-            guard let raiser = sit.lastRaiser, let rt = profiles[raiser]?.type else { return nil }
-            if sit.lastRaiserLimpedFirst && continues && !hc.isBigPair && rt != .whale {
+            guard let raiser = sit.lastRaiser else { return nil }
+            if sit.lastRaiserLimpedFirst && continues && !hc.isBigPair && profiles[raiser]?.type != .whale {
                 return note(.mistake, .limpRaiseIsNuts, "Limp-raise = AA/KK",
                             "\(name(raiser)) limped and then raised. At 1/2 that's almost always AA/KK. Fold \(hc). Even JJ/AQ are crushed.")
             }
+            guard let rt = profiles[raiser]?.type else { return nil }
             if rt == .nit && continues && pct > 0.06 {
                 let setMine = hc.isPair && decision == .call && legal.callAmount * 15 <= min(hero.stack, state.player(seat: raiser)?.stack ?? 0)
                 if !setMine {

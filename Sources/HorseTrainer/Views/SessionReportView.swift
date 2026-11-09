@@ -45,6 +45,25 @@ struct SessionReportView: View {
                         }
                     }
 
+                    SimSummary(game: game)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel("Who they really were")
+                        ForEach(game.seats.compactMap { s in s.occupant.bot }, id: \.id) { b in
+                            let st = game.tracker.stats(for: b.id)
+                            HStack(spacing: 10) {
+                                Avatar(name: b.name, hue: b.avatarHue, size: 24)
+                                Text(b.name).font(Theme.ui(13, .semibold)).frame(width: 90, alignment: .leading)
+                                Text("Your read: \(TypeEstimate.label(st))").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+                                    .frame(width: 170, alignment: .leading)
+                                TypeBadge(type: b.type, small: true)
+                                Text("\(st.hands)h · VPIP \(st.vpipText) · PFR \(st.pfrText)").font(Theme.mono(11)).foregroundStyle(Theme.textFaint)
+                                Spacer()
+                            }
+                            .help(b.profile.quirks.joined(separator: "\n"))
+                        }
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
                         SectionLabel("Feedback")
                         ForEach(f.findings) { item in

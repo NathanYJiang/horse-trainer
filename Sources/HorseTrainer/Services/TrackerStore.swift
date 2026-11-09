@@ -31,9 +31,18 @@ struct TrackedSession: Codable, Identifiable {
     var bb100: Double { hands == 0 ? 0 : Double(net) / TrackerStore.bigBlind / Double(hands) * 100 }
 }
 
+/// Simulated decision quality for one session (dollars).
+struct SimTotals: Codable {
+    var decisions = 0
+    var evLost = 0.0
+    var readCost = 0.0
+}
+
 struct TrackerData: Codable {
     var sessions: [TrackedSession] = []
     var hands: [TrackedHand] = []
+    /// Optional so older tracker files still decode.
+    var sim: [UUID: SimTotals]?
 }
 
 /// Long-run results for label-free Cash Game tables, like an online tracker (HM / PT) for the simulated 1/2 pool.
@@ -65,6 +74,9 @@ final class TrackerStore {
     private(set) var byPosition: [Row] = []
     private(set) var byOpponentType: [(PlayerType, Row)] = []
     private(set) var graph: [GraphPoint] = []
+    private(set) var simTotals = SimTotals()
+    /// Hands in the sessions that have simulated decisions (the denominator for per-100 rates).
+    private(set) var simHands = 0
 
     private var url: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HorseTrainer", isDirectory: true)
@@ -138,6 +150,24 @@ final class TrackerStore {
         if unsaved >= 10 { save() }
     }
 
+    func addSim(_ e: SimEval, sessionID: UUID) {
+        var t = data.sim?[sessionID] ?? SimTotals()
+        t.decisions += 1
+        t.evLost += e.loss(e.read)
+        t.readCost += e.readCost()
+        data.sim = (data.sim ?? [:]).merging([sessionID: t]) { $1 }
+        if sessionID != sealed { refresh() }
+        unsaved += 1
+        if unsaved >= 10 { save() }
+    }
+
+    func sim(for session: UUID) -> SimTotals? { data.sim?[session] }
+
+    /// bb per 100 hands, from a dollar total.
+    func per100(_ dollars: Double, hands: Int) -> Double? {
+        hands == 0 ? nil : dollars / Self.bigBlind / Double(hands) * 100
+    }
+
     // MARK: - Aggregates
 
     struct Row: Identifiable {
@@ -177,6 +207,11 @@ final class TrackerStore {
         s.inaccuracies = sessions.reduce(0) { $0 + $1.inaccuracies }
         s.mistakes = sessions.reduce(0) { $0 + $1.mistakes }
         lifetimeSessionStats = s
+        let simmed = sessions.filter { data.sim?[$0.id] != nil }
+        simHands = simmed.reduce(0) { $0 + $1.hands }
+        simTotals = simmed.compactMap { data.sim?[$0.id] }.reduce(into: SimTotals()) {
+            $0.decisions += $1.decisions; $0.evLost += $1.evLost; $0.readCost += $1.readCost
+        }
 
         let groups = Dictionary(grouping: hands, by: \.position)
         byPosition = Position.allCases.map(\.short).compactMap { p in

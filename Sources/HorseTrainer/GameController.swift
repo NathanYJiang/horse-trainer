@@ -76,6 +76,11 @@ final class GameController {
     private var loopTask: Task<Void, Never>?
     private var dealTask: Task<Void, Never>?
     private var spotTask: Task<Void, Never>?
+    private var simChain: Task<Void, Never>?
+
+    /// Every simulated hero decision this session, in order.
+    private(set) var sims: [SimEval] = []
+    private(set) var pendingSims = 0
 
     /// Pre-selected action that fires as soon as it's the hero's turn.
     var premove: Premove?
@@ -146,6 +151,8 @@ final class GameController {
         hand = nil
         history = []
         allNotes = []
+        sims = []
+        pendingSims = 0
         notesThisHand = []
         lastAction = [:]
         tags = [:]
@@ -281,11 +288,63 @@ final class GameController {
         if let note = Coach.grade(state: s, heroSeat: heroSeat, decision: d, profiles: reads.profiles, labels: reads.labels) {
             notesThisHand.append(note)
         }
+        if shouldSimulate(s, d) { enqueueSim(state: s, chosen: d) }
         let street = s.street
         s.apply(d)
         record(s, seat: heroSeat, streetBefore: street)
         hand = s
         if s.isComplete { completeHandIfNeeded() } else { runLoop() }
+    }
+
+    func sims(for handNumber: Int) -> [SimEval] { sims.filter { $0.handNumber == handNumber } }
+
+    /// Clear preflop folds of junk aren't worth simulating; everything else is.
+    private func shouldSimulate(_ s: HandState, _ d: Decision) -> Bool {
+        guard !Self.autopilot, let hero = s.player(seat: heroSeat) else { return false }
+        if s.street == .preflop, d == .fold || (d == .check && s.legalActions()?.canCheck == false) {
+            return RangeModel.standard.percentile(of: HandClass(hero.hole)) <= 0.5
+        }
+        return true
+    }
+
+    /// Simulations run one at a time in the background, in decision order.
+    private func enqueueSim(state: HandState, chosen: Decision) {
+        let lenses = simLenses(state), table = sessionID, prev = simChain, results = mode == .cash ? results : nil
+        let seed = UInt64.random(in: 0...UInt64.max), hero = heroSeat
+        pendingSims += 1
+        simChain = Task { [weak self] in
+            await prev?.value
+            let e = await Task.detached(priority: .utility) {
+                SimGrader.evaluate(state: state, heroSeat: hero, chosen: chosen, lenses: lenses, seed: seed)
+            }.value
+            if let e { results?.addSim(e, sessionID: table) }
+            guard let self, self.sessionID == table else { return }
+            self.pendingSims -= 1
+            if let e { self.sims.append(e) }
+        }
+    }
+
+    /// Three ways to see each opponent: a random 1/2 player (the default line), your read, and who they really are.
+    func simLenses(_ s: HandState) -> [SimGrader.Lens] {
+        var base: [Int: [(profile: Profile, weight: Double)]] = [:]
+        var read = base, truth = base
+        for o in s.opponents(of: heroSeat) {
+            guard let b = session.bot(at: o.seat) else { continue }
+            let seen = session.tracker.stats(for: b.id)
+            base[o.seat] = PlayerType.allCases.map { (TypeEstimate.perceivedProfile(type: $0, observed: PlayerStats()), TypeEstimate.population[$0]!) }
+            if typeVisible(seat: o.seat, bot: b) {
+                read[o.seat] = [(TypeEstimate.perceivedProfile(type: b.type, observed: seen), 1)]
+            } else {
+                let post = TypeEstimate.posterior(seen)
+                read[o.seat] = PlayerType.allCases.filter { post[$0]! >= 0.03 }.map { (TypeEstimate.perceivedProfile(type: $0, observed: seen), post[$0]!) }
+            }
+            truth[o.seat] = [(b.profile, 1)]
+        }
+        return [("No read", base), ("Your read", read), ("Real types", truth)]
+    }
+
+    private func typeVisible(seat: Int, bot b: BotPlayer) -> Bool {
+        mode == .training && (showHUD || (currentHandIsSpot && spotVillain == b.type && spotVillains.contains(seat)))
     }
 
     /// What the hero could know about each opponent, for grading. Types count as known only when they're on screen
@@ -297,11 +356,11 @@ final class GameController {
         for seat in session.seats {
             guard let b = seat.occupant.bot else { continue }
             let seen = session.tracker.stats(for: b.id)
-            let typeVisible = mode == .training && (showHUD || (currentHandIsSpot && spotVillain == b.type && spotVillains.contains(seat.seat)))
-            if typeVisible {
+            if typeVisible(seat: seat.seat, bot: b) {
                 profiles[seat.seat] = TypeEstimate.perceivedProfile(type: b.type, observed: seen)
                 labels[seat.seat] = b.type.name
-            } else {
+            } else if seen.hands >= 8 || seen.limpRaises > 0 {
+                // No read yet means no type-based grading; the simulation still grades the decision.
                 profiles[seat.seat] = TypeEstimate.perceivedProfile(type: TypeEstimate.likely(seen).type, observed: seen)
                 labels[seat.seat] = TypeEstimate.label(seen)
             }
@@ -506,6 +565,14 @@ final class GameController {
         if !leaks.isEmpty {
             out += "\nFLAGGED LEAKS (mistakes / inaccuracies):\n"
             for l in leaks { out += "- \(l.principle): \(l.mistakes) / \(l.inaccuracies)\n" }
+        }
+        if !sims.isEmpty {
+            let lost = sims.reduce(0) { $0 + $1.loss($1.read) }, readCost = sims.reduce(0) { $0 + $1.readCost() }
+            out += "\nSIMULATED DECISIONS: \(sims.count) graded by playing every option out vs the opponents' likely hands. EV given up vs your reads: $\(Int(lost)). Extra EV perfect reads would have found: $\(Int(readCost)).\n"
+            for e in sims.filter({ $0.loss($0.read) > 0 }).sorted(by: { $0.loss($0.read) > $1.loss($1.read) }).prefix(8) {
+                let opts = e.options.indices.map { "\(e.options[$0]) \(String(format: "%+.0f", e.read.evs[$0] - e.read.evs[0]))" }.joined(separator: ", ")
+                out += "- Hand #\(e.handNumber) \(e.street.name): chose \(e.heroAction); best vs read \(e.options[e.read.best]), real best \(e.options[e.truth.best]). EV vs read: \(opts)\n"
+            }
         }
         let flagged = notes.filter { $0.grade == .mistake || $0.grade == .inaccuracy }.suffix(15)
         if !flagged.isEmpty {

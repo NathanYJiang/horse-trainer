@@ -157,6 +157,15 @@ struct TrackerView: View {
                     StatBox(label: "Inaccuracies", value: "\(s.inaccuracies)", color: Theme.warn)
                     StatBox(label: "Mistakes / 100", value: String(format: "%.1f", per100), color: Theme.bad)
                 }
+                if let lost = t.per100(t.simTotals.evLost, hands: t.simHands), let reads = t.per100(t.simTotals.readCost, hands: t.simHands) {
+                    HStack(spacing: 8) {
+                        StatBox(label: "EV lost bb/100", value: String(format: "%.1f", lost), color: Theme.bad)
+                        StatBox(label: "Read cost bb/100", value: String(format: "%.1f", reads), color: Theme.warn)
+                        StatBox(label: "Decisions simmed", value: "\(t.simTotals.decisions)")
+                    }
+                    Text("EV lost: what your choices gave up vs the best option, given what you could know. Read cost: what perfect reads would have added on top. Unlike results, both are free of card luck.")
+                        .font(Theme.ui(11.5)).foregroundStyle(Theme.textFaint).fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -229,6 +238,7 @@ struct TrackerView: View {
                     Text("HANDS").frame(width: 60, alignment: .trailing)
                     Text("NET").frame(width: 70, alignment: .trailing)
                     Text("BB/100").frame(width: 70, alignment: .trailing)
+                    Text("EV LOST").frame(width: 70, alignment: .trailing)
                     Text("GOOD/INACC/MIST").frame(width: 130, alignment: .trailing)
                 }
                 .font(Theme.mono(9.5)).foregroundStyle(Theme.textFaint)
@@ -239,6 +249,9 @@ struct TrackerView: View {
                         Text("\(s.hands)").frame(width: 60, alignment: .trailing)
                         Text(money(s.net)).frame(width: 70, alignment: .trailing).foregroundStyle(s.net >= 0 ? Theme.good : Theme.bad)
                         Text(String(format: "%.1f", s.bb100)).frame(width: 70, alignment: .trailing)
+                        Text(t.sim(for: s.id).flatMap { t.per100($0.evLost, hands: s.hands) }.map { String(format: "%.1f", $0) } ?? "–")
+                            .frame(width: 70, alignment: .trailing).foregroundStyle(Theme.textDim)
+                            .help("bb/100 given up vs the best simulated option")
                         Text("\(s.good)/\(s.inaccuracies)/\(s.mistakes)").frame(width: 130, alignment: .trailing).foregroundStyle(Theme.textDim)
                     }
                     .font(Theme.mono(12))

@@ -243,7 +243,7 @@ struct CoachPanel: View {
                         Image(systemName: "lock.fill").font(.system(size: 12)).foregroundStyle(Theme.textDim)
                         Text("Grades are sealed").font(Theme.ui(14, .semibold))
                     }
-                    Text("At Cash Game tables you play like it's real: no types, no live coaching. The coach is still grading every key decision. End the session to see the grades, your leaks and how you did against each type.")
+                    Text("At Cash Game tables you play like it's real: no types, no live coaching. Every decision you make is still being simulated and graded on what you could have known. End the session to see the EV you gave up, your leaks and who everyone really was.")
                         .font(Theme.ui(12.5)).foregroundStyle(Theme.textDim).fixedSize(horizontal: false, vertical: true)
                     Button("End session and reveal") { app.modal = .sessionReport(game, startNewAfter: true) }
                         .buttonStyle(PillButtonStyle(prominent: false))
@@ -271,9 +271,19 @@ struct CoachPanel: View {
                 }
                 .padding(.bottom, 2)
             }
-            if app.settings.instantFeedback && game.handInProgress && !game.notesThisHand.isEmpty {
-                Text("THIS HAND").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
-                ForEach(game.notesThisHand) { NoteCard(note: $0) }
+            if app.settings.instantFeedback, game.handInProgress, let h = game.hand {
+                let sims = game.sims(for: h.handNumber)
+                if !game.notesThisHand.isEmpty || !sims.isEmpty {
+                    Text("THIS HAND").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
+                    ForEach(game.notesThisHand) { NoteCard(note: $0) }
+                    ForEach(sims) { SimCard(eval: $0) }
+                }
+            }
+            if game.pendingSims > 0 {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Simulating your decision…").font(Theme.ui(11)).foregroundStyle(Theme.textFaint)
+                }
             }
             if let rec = game.history.first(where: { $0.heroInHand }) {
                 HStack {
@@ -289,13 +299,15 @@ struct CoachPanel: View {
                     Text("Grades for the current hand appear when it ends. Turn on instant feedback in Settings to see them as you act.")
                         .font(Theme.ui(11)).foregroundStyle(Theme.textDim)
                 }
-                if rec.notes.isEmpty {
+                let sims = game.sims(for: rec.id)
+                if rec.notes.isEmpty && sims.isEmpty && game.pendingSims == 0 {
                     Panel {
-                        Text("No flagged decisions. Either standard play, or spots the rule coach doesn't grade. Ask Claude for a full review.")
+                        Text("Nothing to grade: junk folds aren't simulated. Ask Claude for a full review.")
                             .font(Theme.ui(12)).foregroundStyle(.white.opacity(0.8))
                     }
                 } else {
                     ForEach(rec.notes) { NoteCard(note: $0) }
+                    ForEach(sims) { SimCard(eval: $0) }
                 }
                 Button {
                     app.openChat(title: "Hand #\(rec.id) review", context: "Live 1/2 hand history (villain types shown in brackets, which hero may not have known):\n\n" + rec.coachText,
@@ -315,7 +327,7 @@ struct CoachPanel: View {
                 Panel {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Coach").font(Theme.ui(14, .bold))
-                        Text("Play hands and your key decisions get graded against each opponent's type: overfolding to passive aggression, sizing up value vs stations, isolating fish, and more. Each grade cites the principle behind it.")
+                        Text("Every decision you make gets simulated: each option played out against the hands your opponents' actions point to, three ways (no read, your read, their real type). The rule coach adds the principle behind key spots: overfolding to passive aggression, sizing up value vs stations, isolating fish, and more.")
                             .font(Theme.ui(12)).foregroundStyle(.white.opacity(0.8))
                     }
                 }
@@ -471,7 +483,10 @@ struct HistoryPanel: View {
                             .font(Theme.mono(10.5, .regular))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        if game.revealsTypes { ForEach(rec.notes) { NoteCard(note: $0) } }
+                        if game.revealsTypes {
+                            ForEach(rec.notes) { NoteCard(note: $0) }
+                            ForEach(game.sims(for: rec.id)) { SimCard(eval: $0) }
+                        }
                         if rec.heroInHand {
                             Button("Ask Claude about this hand") {
                                 if game.revealsTypes {
