@@ -153,6 +153,7 @@ final class GameController {
         allNotes = []
         sims = []
         pendingSims = 0
+        simChain = nil  // stale sims finish on their own; the new table doesn't wait for them
         notesThisHand = []
         lastAction = [:]
         tags = [:]

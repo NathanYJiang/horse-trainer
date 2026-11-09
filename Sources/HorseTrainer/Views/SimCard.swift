@@ -4,6 +4,8 @@ import SwiftUI
 /// One simulated decision: every option's EV under no read, your read, and the real types.
 struct SimCard: View {
     let eval: SimEval
+    /// Off while a hand with hidden types is still being played, so the real-types row can't tip you off.
+    var showTruth = true
 
     var grade: Grade { eval.grade() }
     var loss: Double { eval.loss(eval.read) }
@@ -29,7 +31,7 @@ struct SimCard: View {
             parts.append("With no read the default is \(e.options[e.baseline.best]); against this read it's \(e.options[e.read.best]). That's the exploit.")
         }
         let rc = e.readCost()
-        if rc > 0 { parts.append("Knowing their real types, \(e.options[e.truth.best]) was best (+$\(Int(rc.rounded())) over what your read suggested).") }
+        if rc > 0 && showTruth { parts.append("Knowing their real types, \(e.options[e.truth.best]) was best (+$\(Int(rc.rounded())) over what your read suggested).") }
         return parts.joined(separator: " ")
     }
 
@@ -68,7 +70,7 @@ struct SimCard: View {
             }
             .font(Theme.mono(9.5))
             .foregroundStyle(Theme.textFaint)
-            ForEach(Array(eval.lenses.enumerated()), id: \.offset) { _, lens in
+            ForEach(Array(eval.lenses.prefix(showTruth ? 3 : 2).enumerated()), id: \.offset) { _, lens in
                 GridRow {
                     Text(lens.name).font(Theme.mono(10)).foregroundStyle(Theme.textDim)
                     ForEach(eval.options.indices, id: \.self) { i in

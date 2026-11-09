@@ -276,7 +276,7 @@ struct CoachPanel: View {
                 if !game.notesThisHand.isEmpty || !sims.isEmpty {
                     Text("THIS HAND").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
                     ForEach(game.notesThisHand) { NoteCard(note: $0) }
-                    ForEach(sims) { SimCard(eval: $0) }
+                    ForEach(sims) { SimCard(eval: $0, showTruth: game.showHUD) }
                 }
             }
             if game.pendingSims > 0 {

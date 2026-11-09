@@ -156,9 +156,14 @@ final class TrackerStore {
         t.evLost += e.loss(e.read)
         t.readCost += e.readCost()
         data.sim = (data.sim ?? [:]).merging([sessionID: t]) { $1 }
-        if sessionID != sealed { refresh() }
-        unsaved += 1
-        if unsaved >= 10 { save() }
+        if sessionID != sealed {
+            // A finished session: nothing else will trigger a save.
+            refresh()
+            save()
+        } else {
+            unsaved += 1
+            if unsaved >= 10 { save() }
+        }
     }
 
     func sim(for session: UUID) -> SimTotals? { data.sim?[session] }

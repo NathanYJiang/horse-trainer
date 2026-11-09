@@ -22,6 +22,9 @@ public struct SimEval: Sendable, Codable, Identifiable, Equatable {
     public let chosen: Int
     /// Default (no read: a random 1/2 player), Your read (what you could know), Real types.
     public let lenses: [SimLens]
+    /// Paired SEs within one lens: real types (truth best − read best), and your read (read best − no-read best).
+    public var readGapSE = 0.0
+    public var exploitGapSE = 0.0
 
     public var baseline: SimLens { lenses[0] }
     public var read: SimLens { lenses[1] }
@@ -48,11 +51,13 @@ public struct SimEval: Sendable, Codable, Identifiable, Equatable {
         let r = read.best, t = truth.best
         guard r != t else { return 0 }
         let gap = truth.evs[t] - truth.evs[r]
-        return gap > 2 * truth.se[t] && gap >= max(Double(bigBlind), 0.03 * Double(pot)) ? gap : 0
+        return gap > 2 * readGapSE && gap >= max(Double(bigBlind), 0.03 * Double(pot)) ? gap : 0
     }
 
     /// Exploit vs default: the best play changes once you account for who you're up against.
-    public var exploitDiffers: Bool { baseline.best != read.best }
+    public var exploitDiffers: Bool {
+        baseline.best != read.best && read.evs[read.best] - read.evs[baseline.best] > 2 * exploitGapSE
+    }
 }
 
 public enum SimGrader {
@@ -114,6 +119,7 @@ public enum SimGrader {
 
         // 2. Per lens, a joint (profile, hand) distribution for each villain; play every option out with common random numbers.
         var out: [SimLens] = []
+        var lensSamples: [[[Double]]] = []
         for lens in lenses {
             var dist: [Int: [(profile: Profile, combo: [Card], cum: Double)]] = [:]
             for v in villains {
@@ -171,16 +177,24 @@ public enum SimGrader {
             guard n > 10 else { return nil }
             let evs = samples.map { $0.prefix(n).reduce(0, +) / Double(n) }
             let base = samples[cands.firstIndex { $0.isChosen } ?? 0]
-            let se = samples.map { s -> Double in
-                let diffs = (0..<n).map { s[$0] - base[$0] }
-                let m = diffs.reduce(0, +) / Double(n)
-                let v = diffs.reduce(0) { $0 + ($1 - m) * ($1 - m) } / Double(max(1, n - 1))
-                return (v / Double(n)).squareRoot()
-            }
-            out.append(SimLens(name: lens.name, evs: evs, se: se))
+            out.append(SimLens(name: lens.name, evs: evs, se: samples.map { pairedSE($0, base, n) }))
+            lensSamples.append(samples.map { Array($0.prefix(n)) })
         }
-        return SimEval(handNumber: state.handNumber, actionIndex: state.actions.count, street: state.street, pot: state.pot,
-                       options: cands.map(\.label), chosen: cands.firstIndex { $0.isChosen } ?? 0, lenses: out)
+        var e = SimEval(handNumber: state.handNumber, actionIndex: state.actions.count, street: state.street, pot: state.pot,
+                        options: cands.map(\.label), chosen: cands.firstIndex { $0.isChosen } ?? 0, lenses: out)
+        let t = lensSamples[2], r = lensSamples[1]
+        e.readGapSE = pairedSE(t[e.truth.best], t[e.read.best], min(t[e.truth.best].count, t[e.read.best].count))
+        e.exploitGapSE = pairedSE(r[e.read.best], r[e.baseline.best], min(r[e.read.best].count, r[e.baseline.best].count))
+        return e
+    }
+
+    /// Standard error of the mean of (a − b) over paired rollouts.
+    static func pairedSE(_ a: [Double], _ b: [Double], _ n: Int) -> Double {
+        guard n > 1 else { return 0 }
+        let diffs = (0..<n).map { a[$0] - b[$0] }
+        let m = diffs.reduce(0, +) / Double(n)
+        let v = diffs.reduce(0) { $0 + ($1 - m) * ($1 - m) } / Double(n - 1)
+        return (v / Double(n)).squareRoot()
     }
 
     // MARK: - Options
