@@ -58,7 +58,12 @@ Busted players either rebuy or get replaced.
 - Skills you miss get weighted to come up more often.
 - Scoring: +10 XP per correct rep, with a combo multiplier (×2 at 3 in a row, ×3 at 6). Finishing a workout gives +50 XP and counts toward your daily streak. 20 reps or a 30+ hand session also counts as an active day. Levels run from Tourist up to Pro.
 
-### 3.1 Live Table (grind)
+### 3.1 Cash Game, Training Table and Tracker
+- **Cash Game** (tracked, label-free): the closest thing to real reps. Types are hidden with no reveal button, there is no spot filter, and the coach grades every decision but seals them until you end the session. Every hand is recorded in the Tracker. Hand reviews with Claude get only what you could see.
+- **Training Table** (training wheels): Show types, instant coaching, the practice/spot filter, per-hand Claude reviews with types. Not tracked.
+- **Tracker**: like HM/PT for the simulated pool. Cumulative winnings graph (total / showdown / non-showdown, hover crosshair), hands, net, bb/100 with a 95% interval, live-hour equivalent (30 hands/hr) and $/hr, "real or luck" variance read with hands needed to pin the win rate down, lifetime stats vs a winning 1/2 profile, results by position and by opponent type (revealed after the fact), and a session list with coach grades. Stored in `tracker.json`.
+
+### 3.1b Table details
 - 9-max table UI styled after a major online site: felt, seats, chip stacks,
   bets, dealer button, pot, and an action bar with Fold / Check-Call / Bet-Raise.
   The bet slider has presets (preflop: 3x, $10, $15, +$5/limper; postflop:
@@ -78,7 +83,7 @@ Busted players either rebuy or get replaced.
   a winning 1/2 profile, the leaks grouped by principle, how you adjusted to
   each type, the biggest pots, and the next drills to run.
 - Table size is adjustable from 2 to 9 players. The default is 9-max, like live 1/2; a 6-max / 9-handed toggle sits in the practice bar.
-- **Practice filter (spot mode)**: pick a real spot (limpers in front, facing an open, blind defense, facing a 3-bet, c-bet or check, facing a c-bet, turn/river bets, your bet got raised, river value, multiway) and optionally a villain type. The table fast-forwards (a solid-reg autopilot plays your earlier streets) until you face that decision, then you play the hand out and the coach grades it. Spot hands are kept out of your session stat benchmarks; results feed skill history.
+- **Practice filter (spot mode, Training Table only)**: pick a real spot (limpers in front, facing an open, blind defense, facing a 3-bet, c-bet or check, facing a c-bet, turn/river bets, your bet got raised, river value, multiway) and optionally a villain type. The table fast-forwards (a solid-reg autopilot plays your earlier streets) until you face that decision, then you play the hand out and the coach grades it. Spot hands are kept out of your session stat benchmarks; results feed skill history.
 - **Pre-actions**: while others act you can pre-select Check/Fold, Check, or Call any (F / K / C). When you're out of the hand, Space skips to the next hand instantly. Auto-deal is a one-click toggle in the action bar.
 - Hand history log, with showdowns visible (the "tabled" hands you'd see live).
 

@@ -34,6 +34,7 @@ struct HorseTrainerApp: App {
                 .frame(minWidth: 1360, minHeight: 820)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     app.live.endSession()
+                    app.training.endSession()
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -85,7 +86,9 @@ struct RootView: View {
         case .home: HomeView()
         case .workout: WorkoutView()
         case .live: LiveTableScreen(game: app.live).id("live")
+        case .training: LiveTableScreen(game: app.training).id("training")
         case .reads: LiveTableScreen(game: app.reads).id("reads")
+        case .tracker: TrackerView()
         case .drills: DrillsView()
         case .sizing: SizingLabView()
         case .ranges: RangeBuilderView()
@@ -134,8 +137,10 @@ struct Sidebar: View {
                     item(.workout, badge: app.store.activeToday ? nil : "today")
                     group("Play")
                     item(.live)
-                    item(.reads)
+                    item(.tracker)
                     group("Train")
+                    item(.training)
+                    item(.reads)
                     item(.drills)
                     item(.sizing)
                     item(.ranges)

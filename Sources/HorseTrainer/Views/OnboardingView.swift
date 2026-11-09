@@ -143,9 +143,9 @@ struct OnboardingView: View {
             title("Playing a session", "Types are hidden at the table, just like live. Here's the flow.")
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    bullet("Sit down", "Live Table deals 9-handed (or 6-max) 1/2 with a realistic mix. Use Practice to drill one spot on repeat: limpers, c-bets, facing raises.")
+                    bullet("Two kinds of tables", "Cash Game is real conditions: no labels, grades sealed until the session ends, every hand tracked in Tracker. Training Table has the training wheels: show types, instant coaching, and spot practice.")
                     bullet("Tag players", "Open the Reads tab and tag each seat as you figure them out. Showdowns and bet sizes are your evidence.")
-                    bullet("Get graded", "The Coach tab grades your key decisions against each villain's type and names the principle behind each grade.")
+                    bullet("Get graded", "The coach grades your key decisions against each villain's type and names the principle. Live on the Training Table, after the session at Cash Game.")
                     bullet("End session", "You get a report on leaks, your stats vs a winning 1/2 profile, and the drills to do next.")
                 }
                 VStack(alignment: .leading, spacing: 10) {

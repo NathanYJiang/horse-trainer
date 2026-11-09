@@ -2,7 +2,14 @@ import Foundation
 import PokerCore
 
 enum TableMode {
-    case play, reads
+    /// Label-free, tracked: no type reveals, grades held until the session ends.
+    case cash
+    /// Training wheels: show types, instant coaching, spot practice. Not tracked.
+    case training
+    /// Sit out and classify the table.
+    case reads
+
+    var isPlaying: Bool { self != .reads }
 }
 
 struct HandRecord: Identifiable {
@@ -46,6 +53,8 @@ final class GameController {
     let mode: TableMode
     let settings: AppSettings
     let store: ProgressStore
+    let results: TrackerStore?
+    private(set) var sessionID = UUID()
     private(set) var session: TableSession
     private(set) var hand: HandState?
     private(set) var notesThisHand: [CoachNote] = []
@@ -70,14 +79,17 @@ final class GameController {
     private(set) var spotVillains: [Int] = []
     private(set) var spotScore = SpotScore()
     private(set) var currentHandIsSpot = false
-    var spotMode: Bool { spotKind != .any }
+    var spotMode: Bool { mode == .training && spotKind != .any }
+    /// Cash tables hide everything you wouldn't know live until the session is over.
+    var revealsTypes: Bool { mode != .cash }
 
     let heroSeat = TableSession.heroSeat
 
-    init(mode: TableMode, preset: TablePreset, seats: Int = 9, settings: AppSettings, store: ProgressStore) {
+    init(mode: TableMode, preset: TablePreset, seats: Int = 9, settings: AppSettings, store: ProgressStore, results: TrackerStore? = nil) {
         self.mode = mode
         self.settings = settings
         self.store = store
+        self.results = results
         session = TableSession(preset: preset, seats: seats)
         heroSittingOut = mode == .reads
     }
@@ -113,6 +125,7 @@ final class GameController {
         loopTask?.cancel()
         dealTask?.cancel()
         session = TableSession(preset: preset, seats: seats)
+        sessionID = UUID()
         hand = nil
         history = []
         notesThisHand = []
@@ -275,6 +288,10 @@ final class GameController {
             }
         }
         appendRecord(h, notes: notesThisHand)
+        if mode == .cash, h.player(seat: heroSeat) != nil {
+            results?.record(hand: h, heroSeat: heroSeat, notes: notesThisHand, sessionID: sessionID, seats: session.seatCount,
+                            preset: session.preset.name, heroStats: heroStats, profiles: session.profilesBySeat)
+        }
         if settings.autoDeal || heroSittingOut || Self.autopilot {
             let wait = heroSittingOut ? max(1.2, settings.botSpeed * 2.5) : 2.5
             dealTask = Task { [weak self] in

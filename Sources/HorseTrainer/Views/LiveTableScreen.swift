@@ -39,14 +39,14 @@ struct LiveTableScreen: View {
                 tab = .reads
                 if game.hand == nil { game.dealNext() }
             }
-            if GameController.autopilot && game.hand == nil && game.mode == .play { game.dealNext() }
+            if GameController.autopilot && game.hand == nil && game.mode.isPlaying { game.dealNext() }
         }
     }
 
     var topBar: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(game.mode == .reads ? "Read the Table" : "Live Table").font(Theme.ui(15, .semibold))
+                Text(game.mode == .reads ? "Read the Table" : (game.mode == .cash ? "Cash Game" : "Training Table")).font(Theme.ui(15, .semibold))
                 Text("NL Hold'em $1/$2 · \(game.session.seatCount)-max · \(game.preset.name)").font(Theme.ui(11)).foregroundStyle(Theme.textDim)
             }
             .lineLimit(1)
@@ -54,7 +54,7 @@ struct LiveTableScreen: View {
             .frame(minWidth: 90, alignment: .leading)
             .layoutPriority(-1)
             Spacer(minLength: 8)
-            if game.mode == .play {
+            if game.mode.isPlaying {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
                         StatBox(label: "Stack", value: "$\(game.stack(of: game.heroSeat))")
@@ -73,22 +73,26 @@ struct LiveTableScreen: View {
                 StatBox(label: "Tagged", value: "\(game.seats.filter { s in s.occupant.bot.map { game.tags[$0.id] != nil } ?? false }.count)/\(game.seats.filter { $0.occupant.bot != nil }.count)")
             }
             Rectangle().fill(Theme.border).frame(width: 1, height: 28).padding(.horizontal, 4)
-            Button(game.showHUD ? "Hide types" : "Show types") { game.showHUD.toggle() }
-                .buttonStyle(PillButtonStyle(color: Theme.surface3, prominent: game.showHUD))
-                .disabled(game.mode == .reads && game.quiz == nil && !game.showHUD)
-                .help(game.mode == .reads ? "Submit your reads to unlock the reveal" : "Reveal true player types (for learning)")
-                .fixedSize()
+            if game.revealsTypes {
+                Button(game.showHUD ? "Hide types" : "Show types") { game.showHUD.toggle() }
+                    .buttonStyle(PillButtonStyle(color: Theme.surface3, prominent: game.showHUD))
+                    .disabled(game.mode == .reads && game.quiz == nil && !game.showHUD)
+                    .help(game.mode == .reads ? "Submit your reads to unlock the reveal" : "Reveal true player types (for learning)")
+                    .fixedSize()
+            }
             Button(game.heroSittingOut ? "Sit in" : "Sit out") { game.toggleSitOut() }
                 .buttonStyle(PillButtonStyle(prominent: false))
                 .fixedSize()
             Menu {
-                if game.mode == .play {
+                if game.mode.isPlaying {
                     Button("End session and get feedback") { app.modal = .sessionReport(game, startNewAfter: true) }
                         .disabled(game.stats.hands == 0)
-                    Button("Review session with Claude") {
-                        app.openChat(title: "Session review", context: game.sessionReport(), question: Self.sessionQuestion)
+                    if game.revealsTypes {
+                        Button("Review session with Claude") {
+                            app.openChat(title: "Session review", context: game.sessionReport(), question: Self.sessionQuestion)
+                        }
+                        .disabled(game.stats.hands < 10)
                     }
-                    .disabled(game.stats.hands < 10)
                     Divider()
                 }
                 Button("New table…") { app.modal = .newTable(game) }
@@ -121,6 +125,15 @@ struct LiveTableScreen: View {
     /// Full sessions or spot practice, plus quick table size.
     var practiceBar: some View {
         HStack(spacing: 10) {
+            if game.mode == .cash {
+                HStack(spacing: 8) {
+                    Circle().fill(Theme.good).frame(width: 7, height: 7)
+                    Text("Tracked").font(Theme.ui(12, .medium))
+                    Text("Real conditions: player types stay hidden and the coach's grades are revealed when you end the session.")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.textDim).lineLimit(1).truncationMode(.tail)
+                }
+                .layoutPriority(-1)
+            } else {
             BlockMenu(label: "PRACTICE", selection: Binding(get: { game.spotKind }, set: { game.setSpot($0, villain: game.spotVillain) }),
                       options: SpotKind.allCases.map { ($0, $0.title) })
             if game.spotMode {
@@ -135,6 +148,7 @@ struct LiveTableScreen: View {
             }
             .truncationMode(.tail)
             .layoutPriority(-1)
+            }
             Spacer(minLength: 8)
             if game.spotMode && game.spotScore.spots > 0 {
                 Text("\(game.spotScore.spots) spots · \(game.spotScore.good) good · \(game.spotScore.bad) flagged")
@@ -217,6 +231,38 @@ struct CoachPanel: View {
     let game: GameController
 
     var body: some View {
+        if game.revealsTypes { open } else { sealed }
+    }
+
+    /// Cash tables: grades exist but stay sealed until the session ends, like finding out in review.
+    var sealed: some View {
+        let graded = game.history.reduce(0) { $0 + $1.notes.count } + game.notesThisHand.count
+        return VStack(alignment: .leading, spacing: 10) {
+            Panel {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill").font(.system(size: 12)).foregroundStyle(Theme.textDim)
+                        Text("Grades are sealed").font(Theme.ui(14, .semibold))
+                    }
+                    Text("At Cash Game tables you play like it's real: no types, no live coaching. The coach is still grading every key decision. End the session to see the grades, your leaks and how you did against each type.")
+                        .font(Theme.ui(12.5)).foregroundStyle(Theme.textDim).fixedSize(horizontal: false, vertical: true)
+                    Text("\(graded) decision\(graded == 1 ? "" : "s") graded so far").font(Theme.mono(11.5)).foregroundStyle(Theme.textFaint)
+                    Button("End session and reveal") { app.modal = .sessionReport(game, startNewAfter: true) }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .disabled(game.stats.hands == 0)
+                    Text("Want hints while you play? Use the Training Table.").font(Theme.ui(11.5)).foregroundStyle(Theme.textFaint)
+                }
+            }
+            if let rec = game.history.first(where: { $0.heroInHand }) {
+                Text("LAST HAND #\(rec.id)").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
+                Text(rec.publicText).font(Theme.mono(11, .regular)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 16)
+    }
+
+    var open: some View {
         VStack(alignment: .leading, spacing: 10) {
             if game.stats.hands > 0 {
                 HStack(spacing: 12) {
@@ -427,11 +473,16 @@ struct HistoryPanel: View {
                             .font(Theme.mono(10.5, .regular))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        ForEach(rec.notes) { NoteCard(note: $0) }
+                        if game.revealsTypes { ForEach(rec.notes) { NoteCard(note: $0) } }
                         if rec.heroInHand {
                             Button("Ask Claude about this hand") {
-                                app.openChat(title: "Hand #\(rec.id) review", context: rec.coachText,
-                                             question: "Review my play in this hand against these player types.")
+                                if game.revealsTypes {
+                                    app.openChat(title: "Hand #\(rec.id) review", context: rec.coachText,
+                                                 question: "Review my play in this hand against these player types.")
+                                } else {
+                                    app.openChat(title: "Hand #\(rec.id) review", context: "Live 1/2 hand history. Hero does not know opponent types; judge from the actions only.\n\n" + rec.publicText,
+                                                 question: "Review my play in this hand using only what I could see at the table. What reads does the action give, and what was the best exploitative line?")
+                                }
                             }
                             .font(Theme.ui(11))
                         }
@@ -445,7 +496,7 @@ struct HistoryPanel: View {
                             Text(n >= 0 ? "+$\(n)" : "-$\(abs(n))").font(Theme.ui(11, .bold))
                                 .foregroundStyle(n > 0 ? Theme.good : (n < 0 ? Theme.bad : Theme.textDim))
                         }
-                        ForEach(rec.notes.filter { $0.grade == .mistake || $0.grade == .inaccuracy }) { Circle().fill(Theme.color(for: $0.grade)).frame(width: 6, height: 6) }
+                        ForEach(game.revealsTypes ? rec.notes.filter { $0.grade == .mistake || $0.grade == .inaccuracy } : []) { Circle().fill(Theme.color(for: $0.grade)).frame(width: 6, height: 6) }
                     }
                 }
                 .padding(8)
@@ -510,7 +561,7 @@ struct NewTableSheet: View {
                     Spacer()
                     Button("Sit down") {
                         game.newTable(preset: preset, seats: Int(seats))
-                        if game.mode == .play {
+                        if game.mode.isPlaying {
                             app.settings.defaultPreset = preset
                             app.settings.defaultSeats = Int(seats)
                         }

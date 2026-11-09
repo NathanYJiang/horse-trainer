@@ -56,6 +56,25 @@ enum Snapshot {
             LevelBar(store: app.store).frame(width: 440)
             ActionBar(game: app.live)
         }.padding(24).environment(app), size: CGSize(width: 1100, height: 700), to: dir.appendingPathComponent("gym.png"))
+        app.tracker.persist = false
+        var sim = TableSession(preset: .typical, seed: 11)
+        let id = UUID()
+        var srng = SplitMix64(seed: 5)
+        for _ in 0..<900 {
+            var h = sim.startHand()
+            var notes: [CoachNote] = []
+            while !h.isComplete, let seat = h.currentSeat {
+                if seat == TableSession.heroSeat {
+                    let d = BotBrain.decide(state: h, seat: seat, profile: Profile.base(.reg), rng: &srng)
+                    if let n = Coach.grade(state: h, heroSeat: seat, decision: d, profiles: sim.profilesBySeat) { notes.append(n) }
+                    h.apply(d)
+                } else if let d = sim.botDecision(h) { h.apply(d) } else { break }
+            }
+            sim.finishHand(h)
+            app.tracker.record(hand: h, heroSeat: TableSession.heroSeat, notes: notes, sessionID: id, seats: 9, preset: "Typical",
+                               heroStats: sim.tracker.stats(for: TableSession.heroID), profiles: sim.profilesBySeat)
+        }
+        render(TrackerView(scrolls: false).environment(app), size: CGSize(width: 1150, height: 1500), to: dir.appendingPathComponent("tracker.png"))
         exit(0)
     }
 

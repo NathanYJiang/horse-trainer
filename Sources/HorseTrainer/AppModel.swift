@@ -3,7 +3,7 @@ import PokerCore
 import SwiftUI
 
 enum Screen: String, CaseIterable, Identifiable {
-    case home, workout, live, reads, drills, sizing, ranges, equity, playbook, progress, settings
+    case home, workout, live, tracker, training, reads, drills, sizing, ranges, equity, playbook, progress, settings
 
     var id: String { rawValue }
 
@@ -11,7 +11,9 @@ enum Screen: String, CaseIterable, Identifiable {
         switch self {
         case .home: "Home"
         case .workout: "Daily Workout"
-        case .live: "Live Table"
+        case .live: "Cash Game"
+        case .training: "Training Table"
+        case .tracker: "Tracker"
         case .reads: "Read the Table"
         case .drills: "Exploit Drills"
         case .sizing: "Sizing Lab"
@@ -28,6 +30,8 @@ enum Screen: String, CaseIterable, Identifiable {
         case .home: "house"
         case .workout: "flame"
         case .live: "suit.spade"
+        case .training: "graduationcap"
+        case .tracker: "chart.xyaxis.line"
         case .reads: "eye"
         case .drills: "target"
         case .sizing: "slider.horizontal.3"
@@ -44,7 +48,9 @@ enum Screen: String, CaseIterable, Identifiable {
         switch self {
         case .home: "Your dashboard and what to do next"
         case .workout: "15 fresh reps a day, 3 rounds"
-        case .live: "Play a 1/2 table vs realistic player types"
+        case .live: "Real conditions: no labels, tracked over time"
+        case .training: "Show types, instant coaching, drill one spot on repeat"
+        case .tracker: "Your Cash Game results over time"
         case .reads: "Watch hands and classify every seat"
         case .drills: "Same spot, different villain, different answer"
         case .sizing: "Bet the most they'll call, and read their bets"
@@ -61,12 +67,12 @@ enum Screen: String, CaseIterable, Identifiable {
         case .home: "1"
         case .workout: "2"
         case .live: "3"
-        case .reads: "4"
-        case .drills: "5"
-        case .sizing: "6"
-        case .ranges: "7"
-        case .equity: "8"
-        case .playbook: "9"
+        case .training: "4"
+        case .reads: "5"
+        case .tracker: "6"
+        case .drills: "7"
+        case .sizing: "8"
+        case .ranges: "9"
         default: nil
         }
     }
@@ -195,13 +201,16 @@ final class AppModel {
     }
     let settings = AppSettings()
     let store = ProgressStore()
+    let tracker = TrackerStore()
     let live: GameController
+    let training: GameController
     let reads: GameController
     var chat: CoachChat?
 
     init() {
         if let s = ProcessInfo.processInfo.environment["HT_SCREEN"], let sc = Screen(rawValue: s) { screen = sc }
-        live = GameController(mode: .play, preset: settings.defaultPreset, seats: settings.defaultSeats, settings: settings, store: store)
+        live = GameController(mode: .cash, preset: settings.defaultPreset, seats: settings.defaultSeats, settings: settings, store: store, results: tracker)
+        training = GameController(mode: .training, preset: settings.defaultPreset, seats: settings.defaultSeats, settings: settings, store: store)
         reads = GameController(mode: .reads, preset: .random, settings: settings, store: store)
     }
 

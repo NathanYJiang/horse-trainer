@@ -88,8 +88,8 @@ struct HomeView: View {
         HStack(spacing: 12) {
             step("01", "Learn the types", "Five player types and how to beat each one.", .playbook)
             step("02", "Daily workout", "15 reps: preflop, reads, value.", .workout)
-            step("03", "Play & read", "Live table with hidden types. Tag every seat.", .live)
-            step("04", "Review", "End the session for feedback and a Claude review.", .progress)
+            step("03", "Play cash", "Real conditions: no labels, grades sealed until you end the session.", .live)
+            step("04", "Track", "Your graph, win rate and leaks across every Cash Game session.", .tracker)
         }
     }
 
@@ -146,7 +146,7 @@ struct HomeView: View {
     var lastSession: some View {
         Panel(padding: 20) {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel("Last live session")
+                SectionLabel("Last Cash Game session")
                 if let s = store.progress.sessions.last {
                     HStack(spacing: 10) {
                         StatBox(label: "Hands", value: "\(s.hands)")
@@ -158,8 +158,14 @@ struct HomeView: View {
                     Text("No sessions yet. Sit at a table, play 30+ hands, then hit End session for feedback.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.textDim)
                 }
-                Button(app.live.stats.hands > 0 ? "Resume table (\(app.live.stats.hands) hands)" : "Open the live table") { app.screen = .live }
-                    .buttonStyle(PillButtonStyle(prominent: false))
+                HStack(spacing: 8) {
+                    Button(app.live.stats.hands > 0 ? "Resume table (\(app.live.stats.hands) hands)" : "Play Cash Game") { app.screen = .live }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                    if app.tracker.totalHands > 0 {
+                        Button("Tracker: \(app.tracker.totalHands) hands, \(String(format: "%.1f", app.tracker.bb100)) bb/100") { app.screen = .tracker }
+                            .buttonStyle(PillButtonStyle(prominent: false))
+                    }
+                }
             }
         }
     }
