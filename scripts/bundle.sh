@@ -29,3 +29,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 codesign --force --sign - "$APP" >/dev/null
 echo "Built $APP — open it with: open $APP"
+
+if [[ "${1:-}" == "--install" ]]; then
+  rm -rf "/Applications/Horse Trainer.app"
+  ditto "$APP" "/Applications/Horse Trainer.app"
+  echo "Installed to /Applications/Horse Trainer.app"
+fi
