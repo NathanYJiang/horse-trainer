@@ -29,11 +29,11 @@ what you learn in drills is exactly how the table plays.
 
 | Type | VPIP / PFR | Profile | Primary exploit |
 |---|---|---|---|
-| **Whale** | 60–75 / 20–35 | Loose-aggressive station. Straddles, big random opens ($20–40), barrels air when checked to ("given rope"), calls too much. | Value bet huge, bluff rarely, give rope (check to them) and bluff-catch. Overfold when they raise *your* bet ("fire with fire" = value). |
-| **Fish** | 40–55 / 5–12 | Loose-passive station. Limps, limp-calls, calls down with any pair or draw. Bluffs too little. Strong sizing tells: small = medium, big = nuts. Raises = nuts. | "What does my hand want?" Put money in for them: big value sizes early, small bluff sizes only. **Overfold massively** to their aggression. |
-| **Trying Rec** | 18–26 / 10–16 | Tight-passive "trying to play right". Opens $10–15, c-bets value, gives up air, folds to big bets, rarely bluffs. | Bigger value early, **size down value on the river**, bluff more often with **larger** sizes. Overfold to their aggression. |
-| **Nit / OMC** | 10–15 / 5–9 | Plays only big cards and pairs. Sometimes limp-raises AA/KK. Never bluffs rivers. Raises = nutted. | Steal and bluff a lot. Tighten vs their opens/limp-raises. Fold to their big postflop aggression. |
-| **Reg** | 22–28 / 17–23 | Winning TAG. Iso-raises fish limps, ranges c-bets small, bluffs in small and medium pots, plays straightforwardly when the pot gets big. | "Put yourself in their shoes." Play your value like they play bluffs (and vice versa). Overfold in big pots. Bluff big pots, which make them uncomfortable. |
+| **Whale** | 60–80 / 15–30 | Loose-aggressive station. Straddles, big random opens ($20–40), barrels air when checked to ("given rope"), calls too much. | Value bet huge, bluff rarely, give rope (check to them) and bluff-catch. Overfold when they raise *your* bet ("fire with fire" = value). |
+| **Fish** | 45–60 / 3–10 | Loose-passive station. Limps, limp-calls, calls down with any pair or draw. Bluffs too little. Strong sizing tells: small = medium, big = nuts. Raises = nuts. | "What does my hand want?" Put money in for them: big value sizes early, small bluff sizes only. **Overfold massively** to their aggression. |
+| **Trying Rec** | 20–28 / 7–14 | Tight-passive "trying to play right". Opens $10–15, c-bets value, gives up air, folds to big bets, rarely bluffs. | Bigger value early, **size down value on the river**, bluff more often with **larger** sizes. Overfold to their aggression. |
+| **Nit / OMC** | 10–15 / 4–8 | Plays only big cards and pairs. Sometimes limp-raises AA/KK. Never bluffs rivers. Raises = nutted. | Steal and bluff a lot. Tighten vs their opens/limp-raises. Fold to their big postflop aggression. |
+| **Reg** | 22–28 / 16–22 | Winning TAG. Iso-raises fish limps, ranges c-bets small, bluffs in small and medium pots, plays straightforwardly when the pot gets big. | "Put yourself in their shoes." Play your value like they play bluffs (and vice versa). Overfold in big pots. Bluff big pots, which make them uncomfortable. |
 
 Per-seat variation: every bot gets ±15% jitter on its parameters and a few
 quirks: limp-traps premiums, big opens with premiums (a preflop sizing tell),
@@ -44,7 +44,32 @@ doesn't decide it, as live tells do.
 Table presets match live 1/2: *Typical weekend*, *Weekday grind* (reg- and
 nit-heavy), *Juicy Saturday* (2 whales), and *Random*. Blinds are $1/$2 with an
 optional $5 straddle. Buy-ins run $100–$300; whales and regs often sit deeper.
-Busted players either rebuy or get replaced.
+Busted players either rebuy or get replaced, and players also go home over
+time (about six live hours on average, sooner after a big win), so line-ups and
+stack depths stay realistic. Pots that see a flop are raked like a card room:
+10% capped at $5, plus a $1 jackpot drop in pots of $20+ (no flop, no drop).
+
+### 2.1 Pool calibration
+
+`PoolCalibration` simulates the pool and `CalibrationTests` hold it to live 1/2
+reference bands. Typical-table snapshot (30k hands, a solid-reg bot in the hero
+seat):
+
+| Measure | Sim | Live 1/2 reference |
+|---|---|---|
+| Hands that see a flop | ~80% | 70–90% |
+| Players per flop | ~3.0 | 2.6–3.6 |
+| Limped flops | ~27% | 20–45% |
+| Average open (no limpers, no straddle) | ~$12.5 | $10–16 |
+| Rake per hand | ~$3.40 | $3–5 |
+| Fish / whale fold to c-bet | ~40% | under 50% |
+| Whale / fish win rate | about −170 / −125 bb/100 | big losers |
+| Trying rec / nit win rate | about −2 / +13 bb/100 | near break-even after rake |
+| Reg win rate | about +40 bb/100 (~12 bb/hr) | solid live winner, 5–15 bb/hr |
+
+Live win rates are usually quoted per hour; at ~30 hands an hour, 10 bb/hr is
+about 33 bb/100. The reference bands are typical figures for live low stakes,
+not a specific dataset.
 
 ## 3. Modes
 

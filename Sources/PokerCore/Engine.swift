@@ -411,11 +411,15 @@ public struct HandState: Sendable {
         var won: [Int: Int] = [:]
         var shown: [Int: String] = [:]
         let live = players.filter(\.inHand)
+        // The house rakes the pot (main pot first) before it's split, so chopped pots share the rake.
+        let rake = config.rake(pot: pot, sawFlop: board.count >= 3)
+        var rakeLeft = rake
 
         if !showdown || live.count == 1 {
             let w = live[0].seat
-            awards.append(PotAward(amount: pot, eligible: [w], winners: [w], winningHand: nil))
-            won[w] = pot
+            awards.append(PotAward(amount: pot - rake, eligible: [w], winners: [w], winningHand: nil))
+            won[w] = pot - rake
+            rakeLeft = 0
         } else {
             street = .showdown
             var values: [Int: HandValue] = [:]
@@ -428,8 +432,11 @@ public struct HandState: Sendable {
             var prev = 0
             var distributed = 0
             for level in levels {
-                let amount = players.reduce(0) { $0 + min($1.committedTotal, level) - min($1.committedTotal, prev) }
+                var amount = players.reduce(0) { $0 + min($1.committedTotal, level) - min($1.committedTotal, prev) }
                 prev = level
+                let take = min(rakeLeft, amount)
+                amount -= take
+                rakeLeft -= take
                 guard amount > 0 else { continue }
                 let eligible = live.filter { $0.committedTotal >= level }.map(\.seat)
                 let best = eligible.map { values[$0]! }.max()!
@@ -444,21 +451,12 @@ public struct HandState: Sendable {
                 distributed += amount
                 awards.append(PotAward(amount: amount, eligible: eligible, winners: winners, winningHand: best.description))
             }
-            let leftover = pot - distributed
+            let leftover = pot - rake - distributed
             if leftover > 0, let last = awards.last {
                 let w = last.winners[0]
                 won[w, default: 0] += leftover
                 awards[awards.count - 1] = PotAward(amount: last.amount + leftover, eligible: last.eligible, winners: last.winners, winningHand: last.winningHand)
             }
-        }
-
-        // The house takes its rake out of what the winners collect (biggest winner first).
-        let rake = config.rake(pot: pot, sawFlop: board.count >= 3)
-        var owed = rake
-        for seat in won.keys.sorted(by: { won[$0]! > won[$1]! }) where owed > 0 {
-            let take = min(owed, won[seat]!)
-            won[seat]! -= take
-            owed -= take
         }
 
         var net: [Int: Int] = [:]
@@ -468,7 +466,7 @@ public struct HandState: Sendable {
             net[players[i].seat] = w - players[i].committedTotal
         }
         var res = HandResult(pots: awards, net: net, shown: shown, wentToShowdown: showdown && live.count > 1, endedOn: endedOn)
-        res.rake = rake - owed
+        res.rake = rake - rakeLeft
         result = res
     }
 }

@@ -7,9 +7,11 @@ public struct PoolReport: Sendable {
         public var stats = PlayerStats()
         public var hands = 0
         public var net = 0
-        public var bb100: Double { hands == 0 ? 0 : Double(net) / 2 / Double(hands) * 100 }
+        public var bigBlind = 2
+        public var bb100: Double { hands == 0 ? 0 : Double(net) / Double(bigBlind) / Double(hands) * 100 }
     }
 
+    public var bigBlind = 2
     public var hands = 0
     public var byType: [PlayerType: TypeLine] = [:]
     public var hero = TypeLine()
@@ -34,7 +36,7 @@ public struct PoolReport: Sendable {
     public var heroInterval: Double {
         let n = Double(heroNets.count)
         guard n > 30 else { return .infinity }
-        let xs = heroNets.map { Double($0) / 2 }
+        let xs = heroNets.map { Double($0) / Double(bigBlind) }
         let m = xs.reduce(0, +) / n
         let sd = sqrt(xs.reduce(0) { $0 + ($1 - m) * ($1 - m) } / (n - 1))
         return 1.96 * sd / sqrt(n) * 100
@@ -62,19 +64,10 @@ public enum PoolCalibration {
     public static func run(hands n: Int, preset: TablePreset = .typical, seats: Int = 9, heroProfile: Profile? = nil, seed: UInt64 = 1) -> PoolReport {
         var session = TableSession(preset: preset, seats: seats, includeHero: heroProfile != nil, seed: seed)
         var rep = PoolReport()
-        var typeOf: [UUID: PlayerType] = [:]
+        rep.bigBlind = session.config.bigBlind
+        let bb = session.config.bigBlind
         for _ in 0..<n {
-            for b in session.bots { typeOf[b.id] = b.type }
-            var h = session.startHand()
-            var guardCount = 0
-            while !h.isComplete, let seat = h.currentSeat, guardCount < 500 {
-                guardCount += 1
-                if seat == TableSession.heroSeat, let hp = heroProfile {
-                    h.apply(BotBrain.decide(state: h, seat: seat, profile: hp, rng: &session.rng))
-                } else if let d = session.botDecision(h) {
-                    h.apply(d)
-                } else { break }
-            }
+            let h = session.playHand(heroProfile: heroProfile)
             guard let r = h.result else { continue }
             rep.hands += 1
             rep.rake += r.rake
@@ -82,17 +75,17 @@ public enum PoolCalibration {
             let pre = h.actions(on: .preflop)
             let raises = pre.filter { $0.type == .raise }
             if !raises.isEmpty { rep.raisedPreflop += 1 }
-            if h.straddleSeat == nil, let first = pre.first(where: { $0.type == .raise }),
-               !pre.prefix(while: { $0.index < first.index }).contains(where: { $0.type == .call }) {
+            if h.straddleSeat == nil, let first = raises.first,
+               !pre.contains(where: { $0.index < first.index && $0.type == .call }) {
                 rep.openSizes.append(first.toAmount)
             }
             if h.board.count >= 3 {
                 rep.flops += 1
-                let inFlop = h.players.filter { p in !h.actions.contains { $0.seat == p.seat && $0.type == .fold && $0.street == .preflop } }
-                rep.playersAtFlop += inFlop.count
+                rep.playersAtFlop += h.players.filter { p in !pre.contains { $0.seat == p.seat && $0.type == .fold } }.count
                 if raises.isEmpty { rep.limpedFlops += 1 }
                 if r.wentToShowdown { rep.showdowns += 1 }
             }
+            // Seat changes happen at the next deal, so the seats still hold this hand's players here.
             for p in h.players {
                 let net = r.net[p.seat] ?? 0
                 if p.seat == TableSession.heroSeat && heroProfile != nil {
@@ -100,31 +93,21 @@ public enum PoolCalibration {
                     rep.hero.net += net
                     rep.heroNets.append(net)
                 } else if let b = session.bot(at: p.seat) {
-                    rep.byType[b.type, default: .init()].hands += 1
-                    rep.byType[b.type, default: .init()].net += net
+                    rep.byType[b.type, default: .init(bigBlind: bb)].hands += 1
+                    rep.byType[b.type, default: .init(bigBlind: bb)].net += net
                 }
             }
-            session.finishHand(h)
         }
+        rep.hero.bigBlind = bb
+        var typeOf: [UUID: PlayerType] = [:]
+        for b in session.bots + session.departed { typeOf[b.id] = b.type }
         for (id, st) in session.tracker.stats {
             if id == TableSession.heroID {
                 rep.hero.stats = st
             } else if let t = typeOf[id] {
-                rep.byType[t, default: .init()].stats = rep.byType[t, default: .init()].stats.adding(st)
+                rep.byType[t, default: .init(bigBlind: bb)].stats = rep.byType[t, default: .init(bigBlind: bb)].stats.adding(st)
             }
         }
         return rep
-    }
-}
-
-extension PlayerStats {
-    public func adding(_ o: PlayerStats) -> PlayerStats {
-        var s = self
-        s.hands += o.hands; s.vpip += o.vpip; s.pfr += o.pfr; s.limps += o.limps
-        s.threeBetOpp += o.threeBetOpp; s.threeBets += o.threeBets; s.sawFlop += o.sawFlop
-        s.cbetOpp += o.cbetOpp; s.cbets += o.cbets; s.foldToCbetOpp += o.foldToCbetOpp; s.foldToCbet += o.foldToCbet
-        s.postflopAggressive += o.postflopAggressive; s.postflopCalls += o.postflopCalls
-        s.wtsd += o.wtsd; s.wonAtShowdown += o.wonAtShowdown; s.straddles += o.straddles
-        return s
     }
 }

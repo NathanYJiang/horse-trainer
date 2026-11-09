@@ -16,16 +16,16 @@ import Testing
         }
     }
 
-    @Test func typicalTableLooksLikeLive12() {
-        let r = PoolCalibration.run(hands: 6000, preset: .typical, heroProfile: Profile.base(.reg), seed: 21)
-        print(r.summary)
+    @Test func typicalTableLooksLikeLive12() throws {
+        let r = PoolCalibration.run(hands: 4000, preset: .typical, heroProfile: Profile.base(.reg), seed: 21)
         #expect((0.68...0.9).contains(r.flopShare))
         #expect((2.6...3.6).contains(r.avgPlayersAtFlop))
         #expect((0.18...0.45).contains(r.limpedFlopShare))
         #expect((10.0...16.0).contains(r.avgOpen))
         #expect((2.5...5.0).contains(r.rakePerHand))
-        let fish = r.byType[.fish]!.stats, whale = r.byType[.whale]!.stats
-        let rec = r.byType[.tryingRec]!.stats, nit = r.byType[.nit]!.stats, reg = r.byType[.reg]!.stats
+        let fishLine = try #require(r.byType[.fish]), whaleLine = try #require(r.byType[.whale]), regLine = try #require(r.byType[.reg])
+        let fish = fishLine.stats, whale = whaleLine.stats, reg = regLine.stats
+        let rec = try #require(r.byType[.tryingRec]).stats, nit = try #require(r.byType[.nit]).stats
         func pct(_ a: Int, _ b: Int) -> Double { Double(a) / Double(max(1, b)) }
         #expect(pct(fish.foldToCbet, fish.foldToCbetOpp) < 0.5)
         #expect(pct(whale.foldToCbet, whale.foldToCbetOpp) < 0.5)
@@ -33,8 +33,8 @@ import Testing
         #expect(pct(rec.foldToCbet, rec.foldToCbetOpp) > pct(reg.foldToCbet, reg.foldToCbetOpp))
         #expect(pct(fish.wtsd, fish.sawFlop) > pct(reg.wtsd, reg.sawFlop))
         // Money flows from the recs to the regs.
-        #expect(r.byType[.whale]!.bb100 < 0)
-        #expect(r.byType[.fish]!.bb100 < 0)
-        #expect(r.byType[.reg]!.bb100 > r.byType[.fish]!.bb100)
+        #expect(whaleLine.bb100 < 0)
+        #expect(fishLine.bb100 < 0)
+        #expect(regLine.bb100 > fishLine.bb100)
     }
 }

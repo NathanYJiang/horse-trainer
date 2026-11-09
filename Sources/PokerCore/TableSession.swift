@@ -113,6 +113,9 @@ public struct TableSession: Sendable {
 
     /// Deals a new hand. `heroSittingOut` removes the hero from this hand.
     public mutating func startHand(heroSittingOut: Bool = false) -> HandState {
+        // Rebuys, busted players and people going home happen between hands, so the last hand's
+        // seats (names, stacks, shown cards) stay intact until the next deal.
+        handleBusts()
         handNumber += 1
         let dealt = seats.filter { s in
             s.stack > 0 && !(s.occupant == .hero && heroSittingOut)
@@ -165,7 +168,6 @@ public struct TableSession: Sendable {
                 stats.handsPlayed += 1
             }
         }
-        handleBusts()
     }
 
     public mutating func rebuyHero(_ amount: Int) {
@@ -204,7 +206,8 @@ public struct TableSession: Sendable {
         guard let b = seats[i].occupant.bot else { return }
         departed.append(b)
         let used = Set(seats.compactMap { $0.occupant.bot?.name })
-        let t = preset.composition(bots: 1, rng: &rng)[0]
+        // Keep the table's character: usually the same kind of player sits down.
+        let t = Double.random(in: 0..<1, using: &rng) < 0.7 ? b.type : preset.composition(bots: 1, rng: &rng)[0]
         let nb = Roster.makeBot(type: t, usedNames: used, rng: &rng)
         seats[i] = SeatInfo(seat: i, occupant: .bot(nb), stack: Roster.buyIn(for: nb.type, config: config, rng: &rng))
     }
@@ -212,11 +215,22 @@ public struct TableSession: Sendable {
     /// Plays a full hand with bots only (hero sits out). Returns the finished hand.
     @discardableResult
     public mutating func simulateHand() -> HandState {
-        var state = startHand(heroSittingOut: true)
+        playHand(heroProfile: nil)
+    }
+
+    /// Plays and finishes a whole hand. With `heroProfile`, a bot with that profile plays the hero seat; otherwise the hero sits out.
+    @discardableResult
+    public mutating func playHand(heroProfile: Profile?) -> HandState {
+        var state = startHand(heroSittingOut: heroProfile == nil)
         var guardCount = 0
-        while !state.isComplete && guardCount < 500 {
-            guard let d = botDecision(state) else { break }
-            state.apply(d)
+        while !state.isComplete, let seat = state.currentSeat, guardCount < 500 {
+            if seat == Self.heroSeat, let hp = heroProfile {
+                state.apply(BotBrain.decide(state: state, seat: seat, profile: hp, rng: &rng))
+            } else if let d = botDecision(state) {
+                state.apply(d)
+            } else {
+                break
+            }
             guardCount += 1
         }
         finishHand(state)

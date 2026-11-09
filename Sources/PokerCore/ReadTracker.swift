@@ -36,6 +36,19 @@ public struct PlayerStats: Sendable, Codable, Equatable {
     public var pfrValue: Double { hands == 0 ? 0 : Double(pfr) / Double(hands) }
 }
 
+extension PlayerStats {
+    /// Sums two stat lines (lifetime totals, per-type pools). Update this when adding a field.
+    public func adding(_ o: PlayerStats) -> PlayerStats {
+        var s = self
+        s.hands += o.hands; s.vpip += o.vpip; s.pfr += o.pfr; s.limps += o.limps
+        s.threeBetOpp += o.threeBetOpp; s.threeBets += o.threeBets; s.sawFlop += o.sawFlop
+        s.cbetOpp += o.cbetOpp; s.cbets += o.cbets; s.foldToCbetOpp += o.foldToCbetOpp; s.foldToCbet += o.foldToCbet
+        s.postflopAggressive += o.postflopAggressive; s.postflopCalls += o.postflopCalls
+        s.wtsd += o.wtsd; s.wonAtShowdown += o.wonAtShowdown; s.straddles += o.straddles
+        return s
+    }
+}
+
 public struct Evidence: Sendable, Codable, Identifiable, Equatable {
     public enum Kind: String, Sendable, Codable { case preflop, showdown, sizing }
     public let id: UUID
