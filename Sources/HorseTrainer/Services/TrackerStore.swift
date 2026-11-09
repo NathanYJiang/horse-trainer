@@ -124,7 +124,7 @@ final class TrackerStore {
     }
 
     var lifetimeHero: PlayerStats {
-        data.sessions.reduce(PlayerStats()) { $0.merged($1.hero) }
+        data.sessions.reduce(PlayerStats()) { $0.adding($1.hero) }
     }
 
     var lifetimeSessionStats: SessionStats {
@@ -182,28 +182,5 @@ final class TrackerStore {
             }
         }
         return out
-    }
-}
-
-extension PlayerStats {
-    func merged(_ o: PlayerStats) -> PlayerStats {
-        var s = self
-        s.hands += o.hands
-        s.vpip += o.vpip
-        s.pfr += o.pfr
-        s.limps += o.limps
-        s.threeBetOpp += o.threeBetOpp
-        s.threeBets += o.threeBets
-        s.sawFlop += o.sawFlop
-        s.cbetOpp += o.cbetOpp
-        s.cbets += o.cbets
-        s.foldToCbetOpp += o.foldToCbetOpp
-        s.foldToCbet += o.foldToCbet
-        s.postflopAggressive += o.postflopAggressive
-        s.postflopCalls += o.postflopCalls
-        s.wtsd += o.wtsd
-        s.wonAtShowdown += o.wonAtShowdown
-        s.straddles += o.straddles
-        return s
     }
 }

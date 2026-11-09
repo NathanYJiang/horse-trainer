@@ -35,13 +35,14 @@ public enum PlayerType: String, CaseIterable, Sendable, Codable, Identifiable {
         }
     }
 
+    /// Measured live-1/2-style bands (see CalibrationTests); used by explanations and the reads quiz.
     public var vpipBand: ClosedRange<Double> {
         switch self {
-        case .whale: 0.52...0.85
-        case .fish: 0.34...0.65
-        case .tryingRec: 0.15...0.32
-        case .nit: 0.07...0.19
-        case .reg: 0.18...0.34
+        case .whale: 0.55...0.85
+        case .fish: 0.38...0.65
+        case .tryingRec: 0.17...0.32
+        case .nit: 0.08...0.18
+        case .reg: 0.18...0.32
         }
     }
 
@@ -93,28 +94,28 @@ public struct Profile: Sendable, Codable, Equatable {
     public static func base(_ t: PlayerType) -> Profile {
         switch t {
         case .whale:
-            Profile(type: t, vpip: 0.75, pfr: 0.28, threeBet: 0.10, limpPreference: 0.85, openSizeLow: 6, openSizeHigh: 15,
-                    premiumOpenBump: 1.0, limpTrapPremiums: 0.05, straddleFreq: 0.6, coldCall: 0.7, positional: 0.1, foldTo3Bet: 0.2,
-                    aggression: 0.75, bluff: 0.35, rope: 0.55, cbet: 0.8, slowplay: 0.1, stickiness: 0.75, foldToBigBet: 0.1,
-                    raiseValue: 0.55, raiseDraw: 0.4, sizingTell: 0.35, bigPotCaution: 0, donkValue: 0.4, thinValue: 0.5, heroCall: 0.25)
+            Profile(type: t, vpip: 0.85, pfr: 0.28, threeBet: 0.10, limpPreference: 0.85, openSizeLow: 6, openSizeHigh: 15,
+                    premiumOpenBump: 1.0, limpTrapPremiums: 0.05, straddleFreq: 0.6, coldCall: 0.8, positional: 0.1, foldTo3Bet: 0.2,
+                    aggression: 0.75, bluff: 0.3, rope: 0.55, cbet: 0.8, slowplay: 0.1, stickiness: 0.75, foldToBigBet: 0.1,
+                    raiseValue: 0.55, raiseDraw: 0.35, sizingTell: 0.35, bigPotCaution: 0, donkValue: 0.4, thinValue: 0.5, heroCall: 0.25)
         case .fish:
-            Profile(type: t, vpip: 0.52, pfr: 0.07, threeBet: 0.02, limpPreference: 0.95, openSizeLow: 3, openSizeHigh: 5,
-                    premiumOpenBump: 1.4, limpTrapPremiums: 0.12, straddleFreq: 0.15, coldCall: 0.45, positional: 0.15, foldTo3Bet: 0.35,
-                    aggression: 0.3, bluff: 0.06, rope: 0.1, cbet: 0.45, slowplay: 0.3, stickiness: 0.8, foldToBigBet: 0.2,
-                    raiseValue: 0.35, raiseDraw: 0.05, sizingTell: 0.9, bigPotCaution: 0, donkValue: 0.55, thinValue: 0.45, heroCall: 0.1)
+            Profile(type: t, vpip: 0.6, pfr: 0.07, threeBet: 0.02, limpPreference: 0.95, openSizeLow: 3, openSizeHigh: 5,
+                    premiumOpenBump: 1.4, limpTrapPremiums: 0.12, straddleFreq: 0.15, coldCall: 0.5, positional: 0.15, foldTo3Bet: 0.35,
+                    aggression: 0.4, bluff: 0.06, rope: 0.1, cbet: 0.45, slowplay: 0.3, stickiness: 0.8, foldToBigBet: 0.2,
+                    raiseValue: 0.35, raiseDraw: 0.05, sizingTell: 0.9, bigPotCaution: 0, donkValue: 0.55, thinValue: 0.5, heroCall: 0.1)
         case .tryingRec:
-            Profile(type: t, vpip: 0.26, pfr: 0.14, threeBet: 0.04, limpPreference: 0.75, openSizeLow: 5, openSizeHigh: 7.5,
-                    premiumOpenBump: 1.25, limpTrapPremiums: 0.15, straddleFreq: 0.05, coldCall: 0.17, positional: 0.5, foldTo3Bet: 0.55,
+            Profile(type: t, vpip: 0.32, pfr: 0.15, threeBet: 0.04, limpPreference: 0.75, openSizeLow: 5, openSizeHigh: 7.5,
+                    premiumOpenBump: 1.25, limpTrapPremiums: 0.15, straddleFreq: 0.05, coldCall: 0.24, positional: 0.5, foldTo3Bet: 0.55,
                     aggression: 0.3, bluff: 0.08, rope: 0.1, cbet: 0.3, slowplay: 0.15, stickiness: 0.2, foldToBigBet: 0.7,
                     raiseValue: 0.3, raiseDraw: 0.08, sizingTell: 0.75, bigPotCaution: 0.3, donkValue: 0.1, thinValue: 0.15, heroCall: 0)
         case .nit:
-            Profile(type: t, vpip: 0.15, pfr: 0.08, threeBet: 0.025, limpPreference: 0.75, openSizeLow: 5, openSizeHigh: 7.5,
-                    premiumOpenBump: 1.3, limpTrapPremiums: 0.2, straddleFreq: 0, coldCall: 0.09, positional: 0.5, foldTo3Bet: 0.6,
+            Profile(type: t, vpip: 0.18, pfr: 0.09, threeBet: 0.025, limpPreference: 0.75, openSizeLow: 5, openSizeHigh: 7.5,
+                    premiumOpenBump: 1.3, limpTrapPremiums: 0.2, straddleFreq: 0, coldCall: 0.12, positional: 0.5, foldTo3Bet: 0.6,
                     aggression: 0.25, bluff: 0.02, rope: 0.02, cbet: 0.25, slowplay: 0.2, stickiness: 0.1, foldToBigBet: 0.8,
                     raiseValue: 0.3, raiseDraw: 0.03, sizingTell: 0.6, bigPotCaution: 0.4, donkValue: 0.15, thinValue: 0.1, heroCall: 0)
         case .reg:
-            Profile(type: t, vpip: 0.31, pfr: 0.27, threeBet: 0.08, limpPreference: 0.1, openSizeLow: 5, openSizeHigh: 6,
-                    premiumOpenBump: 1.0, limpTrapPremiums: 0.03, straddleFreq: 0.1, coldCall: 0.2, positional: 0.8, foldTo3Bet: 0.45,
+            Profile(type: t, vpip: 0.34, pfr: 0.30, threeBet: 0.08, limpPreference: 0.1, openSizeLow: 5, openSizeHigh: 6,
+                    premiumOpenBump: 1.0, limpTrapPremiums: 0.03, straddleFreq: 0.1, coldCall: 0.24, positional: 0.8, foldTo3Bet: 0.45,
                     aggression: 0.65, bluff: 0.3, rope: 0.25, cbet: 0.75, slowplay: 0.15, stickiness: 0.35, foldToBigBet: 0.35,
                     raiseValue: 0.55, raiseDraw: 0.25, sizingTell: 0.15, bigPotCaution: 0.6, donkValue: 0.05, thinValue: 0.4, heroCall: 0.05)
         }

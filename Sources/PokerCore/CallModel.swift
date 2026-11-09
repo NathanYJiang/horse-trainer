@@ -61,11 +61,11 @@ public enum CallModel {
     static func base(_ t: PlayerType, _ h: HoldingClass) -> Double {
         let row: [HoldingClass: Double]
         switch t {
-        case .fish: row = [.nutted: 9, .strong: 9, .topPairTop: 1.6, .topPairWeak: 1.1, .middlePair: 0.75, .strongDraw: 0.8, .weakDraw: 0.4, .air: 0.12]
-        case .whale: row = [.nutted: 9, .strong: 9, .topPairTop: 2.5, .topPairWeak: 1.6, .middlePair: 1.1, .strongDraw: 1.2, .weakDraw: 0.6, .air: 0.3]
-        case .tryingRec: row = [.nutted: 9, .strong: 2.0, .topPairTop: 0.8, .topPairWeak: 0.6, .middlePair: 0.4, .strongDraw: 0.6, .weakDraw: 0.3, .air: 0.05]
-        case .nit: row = [.nutted: 9, .strong: 1.5, .topPairTop: 0.6, .topPairWeak: 0.45, .middlePair: 0.3, .strongDraw: 0.45, .weakDraw: 0.2, .air: 0]
-        case .reg: row = [.nutted: 9, .strong: 2.5, .topPairTop: 1.1, .topPairWeak: 0.8, .middlePair: 0.55, .strongDraw: 0.9, .weakDraw: 0.45, .air: 0.15]
+        case .fish: row = [.nutted: 9, .strong: 9, .topPairTop: 1.5, .topPairWeak: 1.1, .middlePair: 0.8, .strongDraw: 1.0, .weakDraw: 0.65, .air: 0.5]
+        case .whale: row = [.nutted: 9, .strong: 9, .topPairTop: 2.0, .topPairWeak: 1.3, .middlePair: 0.95, .strongDraw: 1.2, .weakDraw: 0.75, .air: 0.5]
+        case .tryingRec: row = [.nutted: 9, .strong: 2.0, .topPairTop: 0.85, .topPairWeak: 0.65, .middlePair: 0.55, .strongDraw: 0.7, .weakDraw: 0.5, .air: 0.3]
+        case .nit: row = [.nutted: 9, .strong: 1.5, .topPairTop: 0.7, .topPairWeak: 0.5, .middlePair: 0.45, .strongDraw: 0.55, .weakDraw: 0.5, .air: 0.25]
+        case .reg: row = [.nutted: 9, .strong: 2.5, .topPairTop: 1.1, .topPairWeak: 0.8, .middlePair: 0.6, .strongDraw: 0.9, .weakDraw: 0.65, .air: 0.45]
         }
         return row[h] ?? 0
     }
@@ -76,6 +76,14 @@ public enum CallModel {
         let tight = t == .tryingRec || t == .nit || t == .reg
         if tight && [.topPairTop, .topPairWeak, .middlePair].contains(h) {
             if street == .river { x *= 0.75 } else if street == .turn { x *= 0.9 }
+        }
+        // Air and weak draws: people float the flop with overcards and backdoors, then give up on later streets.
+        if h == .air || h == .weakDraw {
+            if street == .turn { x *= 0.5 } else if street == .river { x *= h == .air ? 0.25 : 0.4 }
+        }
+        // Even stations slow down on the river with their weakest pairs.
+        if !tight && street == .river {
+            if h == .middlePair { x *= 0.75 } else if h == .topPairWeak { x *= 0.85 }
         }
         if bigPot && tight && h != .nutted { x *= t == .reg ? 0.7 : 0.8 }
         if facingRaise && h != .nutted { x *= (t == .fish || t == .whale) ? 0.85 : 0.6 }

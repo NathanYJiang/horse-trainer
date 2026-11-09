@@ -40,6 +40,7 @@ public enum HandHistoryFormatter {
                 let names = pot.winners.map { $0 == heroSeat ? "Hero" : (h.player(seat: $0)?.name ?? "?") }
                 lines.append("  \(names.joined(separator: " & ")) win\(names.count == 1 ? "s" : "") $\(pot.amount)\(pot.winningHand.map { " with \($0)" } ?? "")")
             }
+            if r.rake > 0 { lines.append("  Rake $\(r.rake)") }
             if let hs = heroSeat, let net = r.net[hs] { lines.append("Hero net: \(net >= 0 ? "+" : "")$\(net)") }
         }
         return lines.joined(separator: "\n")

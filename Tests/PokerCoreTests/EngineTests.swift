@@ -41,7 +41,7 @@ import Testing
 @Suite struct EngineTests {
     @Test func blindsAndFold() {
         var rng = SplitMix64(seed: 1)
-        var h = HandState(config: TableConfig(), handNumber: 1, seats: [(0, "A", 100), (1, "B", 100), (2, "C", 100)],
+        var h = HandState(config: .noRake, handNumber: 1, seats: [(0, "A", 100), (1, "B", 100), (2, "C", 100)],
                           buttonSeat: 0, straddle: false, rng: &rng)
         #expect(h.pot == 3)
         #expect(h.currentSeat == 0)  // button acts first 3-handed preflop
@@ -55,7 +55,7 @@ import Testing
     @Test func straddleActionOrder() {
         var rng = SplitMix64(seed: 2)
         let seats = (0..<6).map { ($0, "P\($0)", 200) }
-        var h = HandState(config: TableConfig(), handNumber: 1, seats: seats, buttonSeat: 0, straddle: true, rng: &rng)
+        var h = HandState(config: .noRake, handNumber: 1, seats: seats, buttonSeat: 0, straddle: true, rng: &rng)
         #expect(h.straddleSeat == 3)
         #expect(h.currentBet == 5)
         #expect(h.currentSeat == 4)
@@ -71,7 +71,7 @@ import Testing
     @Test func sidePots() {
         var rng = SplitMix64(seed: 3)
         let holes: [Int: [Card]] = [0: Card.parse("AsAd"), 1: Card.parse("KsKd"), 2: Card.parse("QsQd")]
-        var h = HandState(config: TableConfig(), handNumber: 1, seats: [(0, "A", 50), (1, "B", 100), (2, "C", 200)],
+        var h = HandState(config: .noRake, handNumber: 1, seats: [(0, "A", 50), (1, "B", 100), (2, "C", 200)],
                           buttonSeat: 2, straddle: false, rng: &rng, presetHoles: holes, presetBoard: Card.parse("2c7h9dJc3s"))
         // Order: SB=0, BB=1, BTN=2 acts first.
         h.apply(.raise(to: 200))
@@ -87,7 +87,7 @@ import Testing
 
     @Test func incompleteAllInDoesNotReopen() {
         var rng = SplitMix64(seed: 4)
-        var h = HandState(config: TableConfig(), handNumber: 1, seats: [(0, "A", 500), (1, "B", 500), (2, "C", 23)],
+        var h = HandState(config: .noRake, handNumber: 1, seats: [(0, "A", 500), (1, "B", 500), (2, "C", 23)],
                           buttonSeat: 2, straddle: false, rng: &rng)
         // C (button) opens to 20; SB re-raise not allowed scenario: A calls, B calls.
         h.apply(.raise(to: 20))  // C
@@ -110,7 +110,7 @@ import Testing
             let count = Int.random(in: 2...9, using: &rng)
             let seats = (0..<count).map { ($0, "P\($0)", Int.random(in: 1...400, using: &rng)) }
             let total = seats.reduce(0) { $0 + $1.2 }
-            var h = HandState(config: TableConfig(), handNumber: n, seats: seats, buttonSeat: Int.random(in: 0..<count, using: &rng),
+            var h = HandState(config: .noRake, handNumber: n, seats: seats, buttonSeat: Int.random(in: 0..<count, using: &rng),
                               straddle: Bool.random(using: &rng), rng: &rng)
             var steps = 0
             while !h.isComplete {
@@ -125,6 +125,28 @@ import Testing
             }
             #expect(h.players.reduce(0) { $0 + $1.stack } == total)
             #expect(h.result!.net.values.reduce(0, +) == 0)
+        }
+    }
+
+    @Test func rakeIsConservedAndCapped() {
+        var rng = SplitMix64(seed: 5)
+        for n in 0..<2000 {
+            let count = Int.random(in: 2...9, using: &rng)
+            let seats = (0..<count).map { ($0, "P\($0)", Int.random(in: 1...400, using: &rng)) }
+            let total = seats.reduce(0) { $0 + $1.2 }
+            var h = HandState(config: TableConfig(), handNumber: n, seats: seats, buttonSeat: 0, straddle: false, rng: &rng)
+            while !h.isComplete {
+                let legal = h.legalActions()!
+                let r = Double.random(in: 0..<1, using: &rng)
+                if r < 0.15 { h.apply(.fold) } else if r < 0.7 { h.apply(legal.canCheck ? .check : .call) } else if legal.canRaise {
+                    h.apply(.raise(to: Int.random(in: legal.minRaiseTo...legal.maxRaiseTo, using: &rng)))
+                } else { h.apply(.call) }
+            }
+            let res = h.result!
+            #expect(h.players.reduce(0) { $0 + $1.stack } + res.rake == total)
+            #expect(res.net.values.reduce(0, +) == -res.rake)
+            #expect(res.rake <= 6)
+            if h.board.count < 3 { #expect(res.rake == 0) }
             #expect(h.players.allSatisfy { $0.stack >= 0 })
         }
     }
@@ -137,7 +159,7 @@ import Testing
             var session = TableSession(preset: preset, includeHero: false, seed: 7)
             for _ in 0..<2000 {
                 let hand = session.simulateHand()
-                #expect(hand.players.reduce(0) { $0 + $1.stack } == hand.players.reduce(0) { $0 + $1.startingStack })
+                #expect(hand.players.reduce(0) { $0 + $1.stack } + hand.result!.rake == hand.players.reduce(0) { $0 + $1.startingStack })
             }
             for bot in session.bots + session.departed {
                 let s = session.tracker.stats(for: bot.id)
@@ -199,7 +221,7 @@ import Testing
     @Test func coachFlagsCallingFishRaise() {
         var rng = SplitMix64(seed: 11)
         // Hero (seat 0) on button with top pair, fish (seat 1) raises hero's c-bet.
-        var h = HandState(config: TableConfig(), handNumber: 1, seats: [(0, "You", 300), (1, "Fishy", 300), (2, "Other", 300)],
+        var h = HandState(config: .noRake, handNumber: 1, seats: [(0, "You", 300), (1, "Fishy", 300), (2, "Other", 300)],
                           buttonSeat: 0, straddle: false, rng: &rng,
                           presetHoles: [0: Card.parse("KhJd"), 1: Card.parse("7c7d"), 2: Card.parse("2c3d")], presetBoard: Card.parse("Kc7s2dTh4c"))
         h.apply(.raise(to: 12))  // hero BTN
@@ -262,7 +284,7 @@ import Testing
         var rng = SplitMix64(seed: 77)
         var fishCalls = 0, nitCalls = 0
         for _ in 0..<40 {
-            var h = HandState(config: TableConfig(), handNumber: 1, seats: [(0, "Hero", 300), (1, "V", 300)], buttonSeat: 0, straddle: false, rng: &rng,
+            var h = HandState(config: .noRake, handNumber: 1, seats: [(0, "Hero", 300), (1, "V", 300)], buttonSeat: 0, straddle: false, rng: &rng,
                               presetHoles: [0: Card.parse("7h7d"), 1: Card.parse("AsKd")], presetBoard: Card.parse("Kc7s2d9h3c"))
             h.apply(.raise(to: 6)); h.apply(.call)
             while h.street != .river { h.apply(.check) }

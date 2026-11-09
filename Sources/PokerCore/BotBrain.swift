@@ -95,7 +95,9 @@ public enum BotBrain {
 
         switch sit.raises {
         case 0:
-            let pfrRange = posAdj(p.pfr)
+            // Recs and nits overlimp behind limpers with hands they'd open; only their best hands raise.
+            let overlimps = !sit.limpers.isEmpty && (p.type == .fish || p.type == .tryingRec || p.type == .nit)
+            let pfrRange = posAdj(p.pfr) * (overlimps ? 0.5 : 1)
             let vpipRange = posAdj(p.vpip)
             if pct <= pfrRange || (hc.isPremium && pct <= 0.05) {
                 if hc.isBigPair && sit.limpers.isEmpty && !pos.isBlind && roll() < p.limpTrapPremiums {

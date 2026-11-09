@@ -64,7 +64,26 @@ public struct TableConfig: Sendable, Codable, Equatable {
     public var straddleAmount = 5
     public var minBuyIn = 100
     public var maxBuyIn = 300
+    /// Typical live 1/2 card-room rake: 10% capped at $5, plus a $1 jackpot drop in pots of $20+. No flop, no drop.
+    public var rakePercent = 0.10
+    public var rakeCap = 5
+    public var jackpotDrop = 1
     public init() {}
+
+    /// No rake at all (engine tests, equity-style analysis).
+    public static var noRake: TableConfig {
+        var c = TableConfig()
+        c.rakePercent = 0
+        c.rakeCap = 0
+        c.jackpotDrop = 0
+        return c
+    }
+
+    public func rake(pot: Int, sawFlop: Bool) -> Int {
+        guard sawFlop, pot > 0 else { return 0 }
+        let r = min(rakeCap, Int(Double(pot) * rakePercent))
+        return r + (pot >= 20 ? jackpotDrop : 0)
+    }
 }
 
 public struct SeatState: Sendable, Codable, Identifiable {
@@ -100,6 +119,8 @@ public struct HandResult: Sendable, Codable {
     public let shown: [Int: String]
     public let wentToShowdown: Bool
     public let endedOn: Street
+    /// Taken by the house from the winners (rake + jackpot drop).
+    public var rake: Int = 0
 }
 
 public struct HandState: Sendable {
@@ -431,12 +452,23 @@ public struct HandState: Sendable {
             }
         }
 
+        // The house takes its rake out of what the winners collect (biggest winner first).
+        let rake = config.rake(pot: pot, sawFlop: board.count >= 3)
+        var owed = rake
+        for seat in won.keys.sorted(by: { won[$0]! > won[$1]! }) where owed > 0 {
+            let take = min(owed, won[seat]!)
+            won[seat]! -= take
+            owed -= take
+        }
+
         var net: [Int: Int] = [:]
         for i in players.indices {
             let w = won[players[i].seat] ?? 0
             players[i].stack += w
             net[players[i].seat] = w - players[i].committedTotal
         }
-        result = HandResult(pots: awards, net: net, shown: shown, wentToShowdown: showdown && live.count > 1, endedOn: endedOn)
+        var res = HandResult(pots: awards, net: net, shown: shown, wentToShowdown: showdown && live.count > 1, endedOn: endedOn)
+        res.rake = rake - owed
+        result = res
     }
 }

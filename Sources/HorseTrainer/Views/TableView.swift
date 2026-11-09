@@ -87,7 +87,7 @@ struct PokerTableView: View {
         r.pots.map { pot in
             let names = pot.winners.map { $0 == game.heroSeat ? "You" : (h.player(seat: $0)?.name ?? "?") }.joined(separator: " & ")
             return "\(names) win\(pot.winners.count == 1 && names != "You" ? "s" : "") $\(pot.amount)\(pot.winningHand.map { " · \($0)" } ?? "")"
-        }.joined(separator: "\n")
+        }.joined(separator: "\n") + (r.rake > 0 ? "\nRake $\(r.rake)" : "")
     }
 
     func betAmount(_ seat: Int) -> Int? {

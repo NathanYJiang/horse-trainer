@@ -51,6 +51,8 @@ public struct TableSession: Sendable {
     public var stats = SessionStats()
     public var heroStraddles = false
     public var autoRebuyHero = true
+    /// Players leave and new ones sit down over time, so stacks and line-ups stay realistic.
+    public var tableTurnover = true
     public var rng: SplitMix64
     public let preset: TablePreset
     /// Bots that left the table this session (so the reads quiz can still reference them).
@@ -181,20 +183,30 @@ public struct TableSession: Sendable {
                     stats.buyIns += config.maxBuyIn
                 }
             case .bot(let b):
-                guard seats[i].stack < config.bigBlind * 2 else { continue }
-                let rebuyChance: Double = [.whale: 0.9, .fish: 0.7, .tryingRec: 0.5, .reg: 0.8, .nit: 0.4][b.type] ?? 0.5
-                if Double.random(in: 0..<1, using: &rng) < rebuyChance {
-                    seats[i].stack += Roster.buyIn(for: b.type, config: config, rng: &rng)
-                } else {
-                    // New player takes the seat — the table changes, like live.
-                    departed.append(b)
-                    let used = Set(seats.compactMap { $0.occupant.bot?.name })
-                    let t = preset.composition(bots: 1, rng: &rng)[0]
-                    let nb = Roster.makeBot(type: t, usedNames: used, rng: &rng)
-                    seats[i] = SeatInfo(seat: i, occupant: .bot(nb), stack: Roster.buyIn(for: nb.type, config: config, rng: &rng))
+                if seats[i].stack < config.bigBlind * 2 {
+                    let rebuyChance: Double = [.whale: 0.9, .fish: 0.7, .tryingRec: 0.5, .reg: 0.8, .nit: 0.4][b.type] ?? 0.5
+                    if Double.random(in: 0..<1, using: &rng) < rebuyChance {
+                        seats[i].stack += Roster.buyIn(for: b.type, config: config, rng: &rng)
+                    } else {
+                        replaceBot(at: i)
+                    }
+                } else if tableTurnover {
+                    // People go home: ~6 live hours on average, sooner once they've racked up a big win.
+                    let leave = seats[i].stack >= config.maxBuyIn * 3 ? 1.0 / 45 : 1.0 / 180
+                    if Double.random(in: 0..<1, using: &rng) < leave { replaceBot(at: i) }
                 }
             }
         }
+    }
+
+    /// A new player from the same kind of game takes the seat, like live.
+    private mutating func replaceBot(at i: Int) {
+        guard let b = seats[i].occupant.bot else { return }
+        departed.append(b)
+        let used = Set(seats.compactMap { $0.occupant.bot?.name })
+        let t = preset.composition(bots: 1, rng: &rng)[0]
+        let nb = Roster.makeBot(type: t, usedNames: used, rng: &rng)
+        seats[i] = SeatInfo(seat: i, occupant: .bot(nb), stack: Roster.buyIn(for: nb.type, config: config, rng: &rng))
     }
 
     /// Plays a full hand with bots only (hero sits out). Returns the finished hand.
