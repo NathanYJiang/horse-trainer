@@ -399,3 +399,22 @@ import Testing
         #expect(h.players.count >= 2)
     }
 }
+
+@Suite struct ReadsTests {
+    @Test func typeEstimateFollowsObservedStats() {
+        var fishy = PlayerStats(); fishy.hands = 40; fishy.vpip = 22; fishy.pfr = 1
+        #expect(TypeEstimate.likely(fishy).type == .fish)
+        var nitty = PlayerStats(); nitty.hands = 50; nitty.vpip = 6; nitty.pfr = 3
+        #expect(TypeEstimate.likely(nitty).type == .nit)
+        var reggy = PlayerStats(); reggy.hands = 60; reggy.vpip = 15; reggy.pfr = 12
+        #expect(TypeEstimate.likely(reggy).type == .reg)
+        #expect(TypeEstimate.label(PlayerStats()) == "no read yet")
+    }
+
+    @Test func limpTrapOnlyCountsOnceSeen() {
+        var unseen = PlayerStats(); unseen.hands = 20
+        #expect(TypeEstimate.perceivedProfile(type: .fish, observed: unseen).limpTrapPremiums == 0)
+        unseen.limpRaises = 1
+        #expect(TypeEstimate.perceivedProfile(type: .fish, observed: unseen).limpTrapPremiums >= 0.3)
+    }
+}

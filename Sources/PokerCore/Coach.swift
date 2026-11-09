@@ -77,7 +77,10 @@ public enum Coach {
         }
     }
 
-    public static func grade(state: HandState, heroSeat: Int, decision: Decision, profiles: [Int: Profile]) -> CoachNote? {
+    /// `profiles` should be what the hero could know (see `TypeEstimate`), not the bots' hidden profiles.
+    /// `labels` describes each read in the note text ("likely Fish"); defaults to the profile's type name.
+    public static func grade(state: HandState, heroSeat: Int, decision: Decision, profiles: [Int: Profile],
+                             labels: [Int: String] = [:]) -> CoachNote? {
         guard let legal = state.legalActions(), let hero = state.player(seat: heroSeat) else { return nil }
         let action = describe(decision, legal: legal, pot: state.pot)
         func note(_ g: Grade, _ p: Principle?, _ h: String, _ d: String) -> CoachNote {
@@ -85,6 +88,7 @@ public enum Coach {
         }
         func name(_ seat: Int) -> String {
             let n = state.player(seat: seat)?.name ?? "Villain"
+            if let l = labels[seat] { return "\(n) (\(l))" }
             guard let t = profiles[seat]?.type else { return n }
             return "\(n) (\(t.name))"
         }
@@ -124,7 +128,7 @@ public enum Coach {
                 let rec = (straddled ? 20 : 12) + 5 * sit.limpers.count
                 if let t = trapLimper, pct > 0.1 {
                     return note(.inaccuracy, .respectLimpTraps, "Careful isolating \(name(t))",
-                                "This player limp-traps big pairs. Iso-raising \(hc) gets you limp-raised off your hand. Against limp-trappers, iso much tighter and overlimp or fold your marginal hands.")
+                                "You've already seen this player limp-raise this session, so their limps include big pairs. Iso-raising \(hc) gets you limp-raised off your hand. Against a known limp-trapper, iso much tighter and overlimp or fold your marginal hands.")
                 }
                 if raiseTo < Int(Double(rec) * 0.7) {
                     return note(.inaccuracy, .liveOpenSizing, "Size up to ~$\(rec)",

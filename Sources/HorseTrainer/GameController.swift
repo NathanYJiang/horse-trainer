@@ -277,7 +277,8 @@ final class GameController {
 
     func heroAct(_ d: Decision) {
         guard isHeroTurn, var s = hand else { return }
-        if let note = Coach.grade(state: s, heroSeat: heroSeat, decision: d, profiles: session.profilesBySeat) {
+        let reads = coachReads()
+        if let note = Coach.grade(state: s, heroSeat: heroSeat, decision: d, profiles: reads.profiles, labels: reads.labels) {
             notesThisHand.append(note)
         }
         let street = s.street
@@ -285,6 +286,27 @@ final class GameController {
         record(s, seat: heroSeat, streetBefore: street)
         hand = s
         if s.isComplete { completeHandIfNeeded() } else { runLoop() }
+    }
+
+    /// What the hero could know about each opponent, for grading. Types count as known only when they're on screen
+    /// (Training Table with "Show types", or a spot filtered to one type). Otherwise the read comes from the hands
+    /// watched so far, and quirks like limp-trapping count only once you've seen them.
+    func coachReads() -> (profiles: [Int: Profile], labels: [Int: String]) {
+        var profiles: [Int: Profile] = [:]
+        var labels: [Int: String] = [:]
+        for seat in session.seats {
+            guard let b = seat.occupant.bot else { continue }
+            let seen = session.tracker.stats(for: b.id)
+            let typeVisible = mode == .training && (showHUD || (currentHandIsSpot && spotVillain == b.type && spotVillains.contains(seat.seat)))
+            if typeVisible {
+                profiles[seat.seat] = TypeEstimate.perceivedProfile(type: b.type, observed: seen)
+                labels[seat.seat] = b.type.name
+            } else {
+                profiles[seat.seat] = TypeEstimate.perceivedProfile(type: TypeEstimate.likely(seen).type, observed: seen)
+                labels[seat.seat] = TypeEstimate.label(seen)
+            }
+        }
+        return (profiles, labels)
     }
 
     private func completeHandIfNeeded() {

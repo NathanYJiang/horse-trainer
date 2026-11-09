@@ -17,6 +17,8 @@ public struct PlayerStats: Sendable, Codable, Equatable {
     public var wtsd = 0
     public var wonAtShowdown = 0
     public var straddles = 0
+    /// Times this player was seen limping and then raising (the classic AA/KK trap).
+    public var limpRaises = 0
 
     public init() {}
 
@@ -44,7 +46,7 @@ extension PlayerStats {
         s.threeBetOpp += o.threeBetOpp; s.threeBets += o.threeBets; s.sawFlop += o.sawFlop
         s.cbetOpp += o.cbetOpp; s.cbets += o.cbets; s.foldToCbetOpp += o.foldToCbetOpp; s.foldToCbet += o.foldToCbet
         s.postflopAggressive += o.postflopAggressive; s.postflopCalls += o.postflopCalls
-        s.wtsd += o.wtsd; s.wonAtShowdown += o.wonAtShowdown; s.straddles += o.straddles
+        s.wtsd += o.wtsd; s.wonAtShowdown += o.wonAtShowdown; s.straddles += o.straddles; s.limpRaises += o.limpRaises
         return s
     }
 }
@@ -59,7 +61,7 @@ extension PlayerStats {
         threeBetOpp = v(.threeBetOpp); threeBets = v(.threeBets); sawFlop = v(.sawFlop)
         cbetOpp = v(.cbetOpp); cbets = v(.cbets); foldToCbetOpp = v(.foldToCbetOpp); foldToCbet = v(.foldToCbet)
         postflopAggressive = v(.postflopAggressive); postflopCalls = v(.postflopCalls)
-        wtsd = v(.wtsd); wonAtShowdown = v(.wonAtShowdown); straddles = v(.straddles)
+        wtsd = v(.wtsd); wonAtShowdown = v(.wonAtShowdown); straddles = v(.straddles); limpRaises = v(.limpRaises)
     }
 }
 
@@ -121,6 +123,7 @@ public struct ReadTracker: Sendable, Codable {
                             }
                         }
                         if a.type == .raise && limpedFirst && raisesBefore >= 1 {
+                            s.limpRaises += 1
                             add(hand, id, p.seat, .preflop, "Limp-raised to $\(a.toAmount)!")
                         }
                         if a.type == .raise && raisesBefore >= 2 {
