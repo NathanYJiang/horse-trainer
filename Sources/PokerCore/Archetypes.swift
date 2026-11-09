@@ -266,7 +266,8 @@ public enum Roster {
         let r = Double.random(in: 0...1, using: &rng)
         switch type {
         case .whale: return [config.maxBuyIn, config.maxBuyIn * 2, Int(Double(config.maxBuyIn) * 2.7)][Int(r * 3) % 3]
-        case .reg: return r < 0.5 ? config.maxBuyIn : Int(Double(config.maxBuyIn) * (1.3 + r))
+        // Stacks above the max are players moving over from another table with their winnings.
+        case .reg: return r < 0.65 ? config.maxBuyIn : Int(Double(config.maxBuyIn) * (1.3 + (r - 0.65)))
         case .nit: return config.maxBuyIn
         case .tryingRec: return r < 0.7 ? config.maxBuyIn : 200
         case .fish: return r < 0.3 ? config.minBuyIn : (r < 0.6 ? 200 : config.maxBuyIn)

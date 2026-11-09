@@ -8,7 +8,7 @@ struct TrackedHand: Codable {
     var net: Int
     var position: String
     var showdown: Bool
-    /// Types of opponents who voluntarily played the pot (revealed only after the fact, in the tracker).
+    /// Types of opponents who voluntarily played the pot with the hero (shown only after the session).
     var vs: [String]
     var good: Int
     var inaccuracies: Int
@@ -28,7 +28,7 @@ struct TrackedSession: Codable, Identifiable {
     var mistakes = 0
     var hero = PlayerStats()
 
-    var bb100: Double { hands == 0 ? 0 : Double(net) / 2 / Double(hands) * 100 }
+    var bb100: Double { hands == 0 ? 0 : Double(net) / TrackerStore.bigBlind / Double(hands) * 100 }
 }
 
 struct TrackerData: Codable {
@@ -37,14 +37,34 @@ struct TrackerData: Codable {
 }
 
 /// Long-run results for label-free Cash Game tables, like an online tracker (HM / PT) for the simulated 1/2 pool.
+/// The Cash session in progress is sealed: it's recorded hand by hand but stays out of every number until it ends,
+/// so nothing here leaks opponent types or coach grades mid-session.
 @MainActor
 @Observable
 final class TrackerStore {
     private(set) var data = TrackerData()
+    private(set) var sealed: UUID?
 
     nonisolated static let bigBlind = 2.0
     /// Typical live 1/2 pace, used to translate hands into "live hours".
     static let liveHandsPerHour = 30.0
+
+    /// Snapshots/tests/autoplay: keep data in memory only.
+    var persist = true
+    private var unsaved = 0
+
+    // Cached aggregates over unsealed data (recomputed when data changes, not on every render).
+    private(set) var sessions: [TrackedSession] = []
+    private(set) var totalHands = 0
+    private(set) var totalNet = 0
+    private(set) var bb100 = 0.0
+    private(set) var bb100Interval: Double?
+    private(set) var sdPerHand: Double?
+    private(set) var lifetimeHero = PlayerStats()
+    private(set) var lifetimeSessionStats = SessionStats()
+    private(set) var byPosition: [Row] = []
+    private(set) var byOpponentType: [(PlayerType, Row)] = []
+    private(set) var graph: [GraphPoint] = []
 
     private var url: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HorseTrainer", isDirectory: true)
@@ -53,15 +73,34 @@ final class TrackerStore {
     }
 
     init() {
-        if let d = try? Data(contentsOf: url), let t = try? JSONDecoder().decode(TrackerData.self, from: d) { data = t }
+        if let d = try? Data(contentsOf: url) {
+            if let t = try? JSONDecoder().decode(TrackerData.self, from: d) {
+                data = t
+            } else {
+                // Never overwrite history we can't read: set it aside and start fresh.
+                let stamp = Int(Date().timeIntervalSince1970)
+                try? FileManager.default.moveItem(at: url, to: url.deletingLastPathComponent().appendingPathComponent("tracker-unreadable-\(stamp).json"))
+            }
+        }
+        refresh()
     }
 
-    /// Snapshots/tests: keep data in memory only.
-    var persist = true
-
     func save() {
+        unsaved = 0
         guard persist else { return }
         if let d = try? JSONEncoder().encode(data) { try? d.write(to: url, options: .atomic) }
+    }
+
+    /// Hide this session from every aggregate until `unseal()`.
+    func seal(_ session: UUID) {
+        sealed = session
+        refresh()
+    }
+
+    func unseal() {
+        sealed = nil
+        refresh()
+        save()
     }
 
     func record(hand h: HandState, heroSeat: Int, notes: [CoachNote], sessionID: UUID, seats: Int, preset: String,
@@ -94,48 +133,12 @@ final class TrackerStore {
             s.hero = heroStats
             data.sessions.append(s)
         }
-        save()
+        if sessionID != sealed { refresh() }
+        unsaved += 1
+        if unsaved >= 10 { save() }
     }
 
     // MARK: - Aggregates
-
-    var totalHands: Int { data.hands.count }
-    var totalNet: Int { data.hands.reduce(0) { $0 + $1.net } }
-    var bb100: Double { totalHands == 0 ? 0 : Double(totalNet) / Self.bigBlind / Double(totalHands) * 100 }
-
-    /// 95% confidence half-width on bb/100, from the per-hand standard deviation.
-    var bb100Interval: Double? {
-        let n = Double(totalHands)
-        guard n >= 30 else { return nil }
-        let xs = data.hands.map { Double($0.net) / Self.bigBlind }
-        let mean = xs.reduce(0, +) / n
-        let sd = sqrt(xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / (n - 1))
-        return 1.96 * sd / sqrt(n) * 100
-    }
-
-    /// Hands needed for the 95% interval to shrink to ±`target` bb/100.
-    func handsNeeded(for target: Double) -> Int? {
-        let n = Double(totalHands)
-        guard n >= 30 else { return nil }
-        let xs = data.hands.map { Double($0.net) / Self.bigBlind }
-        let mean = xs.reduce(0, +) / n
-        let sd = sqrt(xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / (n - 1))
-        return Int(pow(1.96 * sd * 100 / target, 2))
-    }
-
-    var lifetimeHero: PlayerStats {
-        data.sessions.reduce(PlayerStats()) { $0.adding($1.hero) }
-    }
-
-    var lifetimeSessionStats: SessionStats {
-        var s = SessionStats()
-        s.hands = totalHands
-        s.net = totalNet
-        s.good = data.sessions.reduce(0) { $0 + $1.good }
-        s.inaccuracies = data.sessions.reduce(0) { $0 + $1.inaccuracies }
-        s.mistakes = data.sessions.reduce(0) { $0 + $1.mistakes }
-        return s
-    }
 
     struct Row: Identifiable {
         var id: String { label }
@@ -145,19 +148,6 @@ final class TrackerStore {
         var bb100: Double { hands == 0 ? 0 : Double(net) / TrackerStore.bigBlind / Double(hands) * 100 }
     }
 
-    var byPosition: [Row] {
-        let order = Position.allCases.map(\.short)
-        let groups = Dictionary(grouping: data.hands, by: \.position)
-        return order.compactMap { p in groups[p].map { Row(label: p, hands: $0.count, net: $0.reduce(0) { $0 + $1.net }) } }
-    }
-
-    var byOpponentType: [(PlayerType, Row)] {
-        PlayerType.allCases.compactMap { t in
-            let hs = data.hands.filter { $0.vs.contains(t.rawValue) }
-            return hs.isEmpty ? nil : (t, Row(label: t.name, hands: hs.count, net: hs.reduce(0) { $0 + $1.net }))
-        }
-    }
-
     struct GraphPoint: Identifiable {
         var id: String { "\(series)-\(hand)" }
         let hand: Int
@@ -165,22 +155,54 @@ final class TrackerStore {
         let series: String
     }
 
-    /// Cumulative won (total, showdown, non-showdown) in dollars, thinned to ~600 points per series.
-    var graph: [GraphPoint] {
-        guard !data.hands.isEmpty else { return [] }
-        let step = max(1, data.hands.count / 600)
-        var total = 0, sd = 0, nsd = 0
-        var out: [GraphPoint] = [GraphPoint(hand: 0, value: 0, series: "Total"), GraphPoint(hand: 0, value: 0, series: "Showdown"),
-                                 GraphPoint(hand: 0, value: 0, series: "Non-showdown")]
-        for (i, h) in data.hands.enumerated() {
-            total += h.net
-            if h.showdown { sd += h.net } else { nsd += h.net }
-            if (i + 1) % step == 0 || i == data.hands.count - 1 {
-                out.append(GraphPoint(hand: i + 1, value: Double(total), series: "Total"))
-                out.append(GraphPoint(hand: i + 1, value: Double(sd), series: "Showdown"))
-                out.append(GraphPoint(hand: i + 1, value: Double(nsd), series: "Non-showdown"))
+    /// Hands needed for the 95% interval to shrink to ±`target` bb/100.
+    func handsNeeded(for target: Double) -> Int? {
+        sdPerHand.map { WinRate.handsNeeded(sdPerHand: $0, target: target) }
+    }
+
+    private func refresh() {
+        let hands = data.hands.filter { $0.session != sealed }
+        sessions = data.sessions.filter { $0.id != sealed }
+        totalHands = hands.count
+        totalNet = hands.reduce(0) { $0 + $1.net }
+        let wr = WinRate.bb100(nets: hands.map(\.net), bigBlind: Int(Self.bigBlind))
+        bb100 = wr.rate
+        bb100Interval = wr.interval
+        sdPerHand = wr.sdPerHand
+        lifetimeHero = sessions.reduce(PlayerStats()) { $0.adding($1.hero) }
+        var s = SessionStats()
+        s.hands = totalHands
+        s.net = totalNet
+        s.good = sessions.reduce(0) { $0 + $1.good }
+        s.inaccuracies = sessions.reduce(0) { $0 + $1.inaccuracies }
+        s.mistakes = sessions.reduce(0) { $0 + $1.mistakes }
+        lifetimeSessionStats = s
+
+        let groups = Dictionary(grouping: hands, by: \.position)
+        byPosition = Position.allCases.map(\.short).compactMap { p in
+            groups[p].map { Row(label: p, hands: $0.count, net: $0.reduce(0) { $0 + $1.net }) }
+        }
+        byOpponentType = PlayerType.allCases.compactMap { t in
+            let hs = hands.filter { $0.vs.contains(t.rawValue) }
+            return hs.isEmpty ? nil : (t, Row(label: t.name, hands: hs.count, net: hs.reduce(0) { $0 + $1.net }))
+        }
+
+        // Cumulative won (total, showdown, non-showdown) in dollars, thinned to ~600 points per series.
+        var pts: [GraphPoint] = []
+        if !hands.isEmpty {
+            let step = max(1, hands.count / 600)
+            var total = 0, sd = 0, nsd = 0
+            pts = ["Total", "Showdown", "Non-showdown"].map { GraphPoint(hand: 0, value: 0, series: $0) }
+            for (i, h) in hands.enumerated() {
+                total += h.net
+                if h.showdown { sd += h.net } else { nsd += h.net }
+                if (i + 1) % step == 0 || i == hands.count - 1 {
+                    pts.append(GraphPoint(hand: i + 1, value: Double(total), series: "Total"))
+                    pts.append(GraphPoint(hand: i + 1, value: Double(sd), series: "Showdown"))
+                    pts.append(GraphPoint(hand: i + 1, value: Double(nsd), series: "Non-showdown"))
+                }
             }
         }
-        return out
+        graph = pts
     }
 }

@@ -325,3 +325,77 @@ import Testing
         }
     }
 }
+
+@Suite struct EngineEdgeCaseTests {
+    func hand(_ stacks: [Int], button: Int = 0, seed: UInt64 = 1, config: TableConfig = .noRake,
+              holes: [Int: [Card]] = [:], board: [Card] = []) -> HandState {
+        var rng = SplitMix64(seed: seed)
+        return HandState(config: config, handNumber: 1, seats: stacks.enumerated().map { ($0.offset, "P\($0.offset)", $0.element) },
+                         buttonSeat: button, straddle: false, rng: &rng, presetHoles: holes, presetBoard: board)
+    }
+
+    @Test func shortBigBlindStillCostsFullBlind() {
+        // Seats 0 (BTN), 1 (SB), 2 (BB with $1).
+        let h = hand([100, 100, 1])
+        #expect(h.currentBet == 2)
+        #expect(h.legalActions()?.toCall == 2)
+    }
+
+    @Test func checkerCanRaiseAfterShortAllInBet() {
+        var h = hand([100, 100, 100, 3])
+        // Preflop: everyone calls / checks to the flop.
+        while h.street == .preflop { h.apply(h.legalActions()!.canCheck ? .check : .call) }
+        // Seat 3 has $1 left. Flop order: SB(1), BB(2), UTG(3), BTN(0).
+        h.apply(.check)  // seat 1
+        h.apply(.check)  // seat 2
+        h.apply(.raise(to: 1))  // seat 3 all-in for $1: a short bet
+        h.apply(.call)  // seat 0
+        #expect(h.currentSeat == 1)
+        #expect(h.legalActions()?.canRaise == true)
+    }
+
+    @Test func shortAllInsThatAddUpToAFullRaiseReopen() {
+        // Flop: A bets 10, B all-in +5, C all-in +6: together a full raise, so A may re-raise.
+        var h = hand([500, 500, 17, 23])
+        while h.street == .preflop { h.apply(h.legalActions()!.canCheck ? .check : .call) }
+        let a = h.currentSeat!
+        h.apply(.raise(to: 10))
+        h.apply(.raise(to: 15))  // short all-in (+5)
+        h.apply(.raise(to: 21))  // short all-in (+6)
+        while h.currentSeat != a, !h.isComplete { h.apply(.call) }
+        #expect(h.currentSeat == a)
+        #expect(h.legalActions()?.canRaise == true)
+    }
+
+    @Test func headsUpButtonIsInPositionAndBBGetsOddChip() {
+        let h = hand([100, 100], button: 0)
+        #expect(h.isInPosition(0))
+        #expect(!h.isInPosition(1))
+        // Chop with an odd pot: both play the board.
+        var c = hand([100, 100], button: 0, holes: [0: Card.parse("2c3d"), 1: Card.parse("2d3c")], board: Card.parse("AsKsQsJsTs"))
+        c.apply(.raise(to: 3))  // SB/button raises to 3
+        c.apply(.call)
+        while !c.isComplete { c.apply(.check) }
+        let r = c.result!
+        #expect(r.net[0] == 0 && r.net[1] == 0)
+    }
+
+    @Test func chopsShareTheRake() {
+        var c = hand([100, 100, 100], button: 0, config: TableConfig(),
+                     holes: [1: Card.parse("2c3d"), 2: Card.parse("2d3c"), 0: Card.parse("4h5h")], board: Card.parse("AsKsQsJsTs"))
+        c.apply(.fold)  // button
+        c.apply(.raise(to: 50))  // SB
+        c.apply(.call)  // BB
+        while !c.isComplete { c.apply(.check) }
+        let r = c.result!
+        #expect(r.rake == 6)
+        #expect(r.net[1] == -3 && r.net[2] == -3)
+    }
+
+    @Test func sittingOutAtSmallestTableDoesNotCrash() {
+        var s = TableSession(preset: .typical, seats: 2, seed: 3)
+        #expect(s.seatCount == 3)
+        let h = s.startHand(heroSittingOut: true)
+        #expect(h.players.count >= 2)
+    }
+}

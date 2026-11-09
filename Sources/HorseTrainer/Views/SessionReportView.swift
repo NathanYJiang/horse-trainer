@@ -8,7 +8,7 @@ struct SessionReportView: View {
     let startNewAfter: Bool
 
     var feedback: SessionFeedback {
-        SessionFeedback.make(stats: game.stats, hero: game.heroStats, notes: game.history.flatMap(\.notes), bigBlind: 2)
+        SessionFeedback.make(stats: game.stats, hero: game.heroStats, notes: game.allNotes, bigBlind: 2)
     }
 
     var body: some View {
@@ -92,6 +92,7 @@ struct SessionReportView: View {
             }
             .frame(maxHeight: 640)
         }
+        .onAppear { if startNewAfter { game.abandonHand() } }
     }
 
     func close() {

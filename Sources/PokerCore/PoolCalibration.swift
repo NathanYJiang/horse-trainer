@@ -33,14 +33,7 @@ public struct PoolReport: Sendable {
     public var rakePerHand: Double { hands == 0 ? 0 : Double(rake) / Double(hands) }
 
     /// 95% half-width of the hero's bb/100.
-    public var heroInterval: Double {
-        let n = Double(heroNets.count)
-        guard n > 30 else { return .infinity }
-        let xs = heroNets.map { Double($0) / Double(bigBlind) }
-        let m = xs.reduce(0, +) / n
-        let sd = sqrt(xs.reduce(0) { $0 + ($1 - m) * ($1 - m) } / (n - 1))
-        return 1.96 * sd / sqrt(n) * 100
-    }
+    public var heroInterval: Double { WinRate.bb100(nets: heroNets, bigBlind: bigBlind).interval ?? .infinity }
 
     public var summary: String {
         var out = String(format: "POOL %d hands · flop %.0f%% · limped flops %.0f%% · players/flop %.2f · avg open $%.1f · SD/flop %.0f%% · straddled %.0f%% · rake $%.2f/hand\n",
@@ -109,5 +102,24 @@ public enum PoolCalibration {
             }
         }
         return rep
+    }
+}
+
+/// Win-rate statistics from per-hand results.
+public enum WinRate {
+    /// bb/100 and its 95% half-width from per-hand nets in dollars. The interval is nil under 30 hands.
+    public static func bb100(nets: [Int], bigBlind: Int) -> (rate: Double, interval: Double?, sdPerHand: Double?) {
+        let n = Double(nets.count)
+        guard n > 0 else { return (0, nil, nil) }
+        let xs = nets.map { Double($0) / Double(bigBlind) }
+        let mean = xs.reduce(0, +) / n
+        guard n >= 30 else { return (mean * 100, nil, nil) }
+        let sd = (xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / (n - 1)).squareRoot()
+        return (mean * 100, 1.96 * sd / n.squareRoot() * 100, sd)
+    }
+
+    /// Hands needed for the 95% interval to shrink to ±`target` bb/100.
+    public static func handsNeeded(sdPerHand: Double, target: Double) -> Int {
+        Int(pow(1.96 * sdPerHand * 100 / target, 2))
     }
 }

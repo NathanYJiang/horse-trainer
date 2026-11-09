@@ -49,6 +49,20 @@ extension PlayerStats {
     }
 }
 
+extension PlayerStats {
+    /// Tolerant decoding: a field added later decodes as 0 instead of failing the whole file.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func v(_ k: CodingKeys) -> Int { (try? c.decodeIfPresent(Int.self, forKey: k)) ?? 0 }
+        self.init()
+        hands = v(.hands); vpip = v(.vpip); pfr = v(.pfr); limps = v(.limps)
+        threeBetOpp = v(.threeBetOpp); threeBets = v(.threeBets); sawFlop = v(.sawFlop)
+        cbetOpp = v(.cbetOpp); cbets = v(.cbets); foldToCbetOpp = v(.foldToCbetOpp); foldToCbet = v(.foldToCbet)
+        postflopAggressive = v(.postflopAggressive); postflopCalls = v(.postflopCalls)
+        wtsd = v(.wtsd); wonAtShowdown = v(.wonAtShowdown); straddles = v(.straddles)
+    }
+}
+
 public struct Evidence: Sendable, Codable, Identifiable, Equatable {
     public enum Kind: String, Sendable, Codable { case preflop, showdown, sizing }
     public let id: UUID

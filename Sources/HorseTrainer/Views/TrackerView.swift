@@ -57,7 +57,7 @@ struct TrackerView: View {
             StatBox(label: "bb/100", value: String(format: "%.1f", t.bb100) + (ci.map { String(format: " ± %.0f", $0) } ?? ""))
             StatBox(label: "Live hours", value: String(format: "%.0f", hours))
             StatBox(label: "$/hr at live pace", value: hours > 0 ? String(format: "%.0f", Double(t.totalNet) / hours) : "–")
-            StatBox(label: "Sessions", value: "\(t.data.sessions.count)")
+            StatBox(label: "Sessions", value: "\(t.sessions.count)")
         }
     }
 
@@ -232,7 +232,7 @@ struct TrackerView: View {
                     Text("GOOD/INACC/MIST").frame(width: 130, alignment: .trailing)
                 }
                 .font(Theme.mono(9.5)).foregroundStyle(Theme.textFaint)
-                ForEach(t.data.sessions.reversed()) { s in
+                ForEach(t.sessions.reversed()) { s in
                     HStack {
                         Text(s.start.formatted(date: .abbreviated, time: .shortened)).frame(width: 160, alignment: .leading).foregroundStyle(Theme.textDim)
                         Text("\(s.seats)-handed · \(s.preset)").frame(maxWidth: .infinity, alignment: .leading).lineLimit(1).foregroundStyle(Theme.textDim)

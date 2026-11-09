@@ -39,7 +39,8 @@ public struct SessionStats: Sendable, Codable, Equatable {
 /// UI-free so it can be simulated in tests and fast-forwarded.
 public struct TableSession: Sendable {
     public static let maxSeats = 9
-    /// Number of seats at this table (2–9). The hero is always seat 0.
+    public static let minSeats = 3
+    /// Number of seats at this table (3–9; live 1/2 is never heads-up). The hero is always seat 0.
     public let seatCount: Int
     public static let heroSeat = 0
 
@@ -60,7 +61,7 @@ public struct TableSession: Sendable {
 
     public init(preset: TablePreset, seats seatCount: Int = 9, config: TableConfig = TableConfig(), heroBuyIn: Int? = nil, includeHero: Bool = true,
                 seed: UInt64 = UInt64.random(in: 0...UInt64.max)) {
-        self.seatCount = min(Self.maxSeats, max(2, seatCount))
+        self.seatCount = min(Self.maxSeats, max(Self.minSeats, seatCount))
         self.config = config
         self.preset = preset
         var rng = SplitMix64(seed: seed)
@@ -117,9 +118,11 @@ public struct TableSession: Sendable {
         // seats (names, stacks, shown cards) stay intact until the next deal.
         handleBusts()
         handNumber += 1
-        let dealt = seats.filter { s in
+        var dealt = seats.filter { s in
             s.stack > 0 && !(s.occupant == .hero && heroSittingOut)
         }
+        // Never deal a one-player hand: if sitting out would leave one seat, the hero plays this one.
+        if dealt.count < 2 { dealt = seats.filter { $0.stack > 0 } }
         // Advance the button to the next dealt seat.
         let dealtSeats = dealt.map(\.seat).sorted()
         button = dealtSeats.first { $0 > button } ?? dealtSeats[0]
@@ -162,6 +165,7 @@ public struct TableSession: Sendable {
         if !trackHero { ids = ids.filter { $0.value != Self.heroID } }
         tracker.record(state, ids: ids)
         if let hero = state.players.first(where: { seats[$0.seat].occupant == .hero }) {
+            guard trackHero else { return }
             stats.hands += 1
             stats.net += result.net[hero.seat] ?? 0
             if state.actions.contains(where: { $0.seat == hero.seat && ($0.type == .call || $0.type == .raise || $0.type == .bet) }) {

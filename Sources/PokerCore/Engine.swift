@@ -99,6 +99,8 @@ public struct SeatState: Sendable, Codable, Identifiable {
     public var allIn = false
     public var actedThisStreet = false
     public var actedAtRaiseCount = -1
+    /// The bet this player faced the last time they acted (0 = they checked an unbet street).
+    public var actedAtBet = 0
 
     public var inHand: Bool { !folded }
     public var canAct: Bool { !folded && !allIn }
@@ -140,6 +142,8 @@ public struct HandState: Sendable {
     public private(set) var lastAggressorThisStreet: Int?
     public private(set) var lastAggressor: Int?
     public private(set) var raisesThisStreet = 0
+    /// Short all-in raise increments since the last full raise; together they can reopen betting.
+    private var shortRaiseSum = 0
     public private(set) var result: HandResult?
     public let straddleSeat: Int?
     private var deck: Deck
@@ -208,8 +212,10 @@ public struct HandState: Sendable {
             post(index: 2, amount: config.straddleAmount, type: .postStraddle)
             lastBlind = 2
         }
-        currentBet = players.map(\.committedStreet).max() ?? 0
-        minRaiseIncrement = straddleSeat != nil ? config.straddleAmount : config.bigBlind
+        // A short all-in blind doesn't lower the price: everyone still owes the full blind (or straddle).
+        let fullBlind = straddleSeat != nil ? config.straddleAmount : config.bigBlind
+        currentBet = max(players.map(\.committedStreet).max() ?? 0, fullBlind)
+        minRaiseIncrement = fullBlind
         toActIndex = nextToAct(after: lastBlind)
         if toActIndex == nil { closeRound() }
     }
@@ -228,7 +234,9 @@ public struct HandState: Sendable {
         let toCall = max(0, currentBet - p.committedStreet)
         let callAmount = min(toCall, p.stack)
         let othersCanAct = players.enumerated().contains { $0.offset != i && $0.element.canAct }
-        let reopened = !p.actedThisStreet || p.actedAtRaiseCount < fullRaiseCount
+        // Betting is open to a player who hasn't acted, who faced no wager when they last acted (checked),
+        // or who has seen a full raise since.
+        let reopened = !p.actedThisStreet || p.actedAtRaiseCount < fullRaiseCount || (p.actedAtBet == 0 && currentBet > 0)
         let canRaise = p.stack > toCall && reopened && othersCanAct
         let maxTo = p.committedStreet + p.stack
         let minTo = min(maxTo, currentBet == 0 ? config.bigBlind : currentBet + minRaiseIncrement)
@@ -243,6 +251,8 @@ public struct HandState: Sendable {
 
     /// Is `seat` last to act postflop among players still in (i.e. in position on everyone)?
     public func isInPosition(_ seat: Int) -> Bool {
+        // Heads-up the button (players[0]) acts last postflop; otherwise the last seat in order does.
+        if players.count == 2 { return players[0].seat == seat }
         let live = players.filter(\.inHand)
         return live.last?.seat == seat
     }
@@ -290,6 +300,14 @@ public struct HandState: Sendable {
             if increment >= minRaiseIncrement {
                 minRaiseIncrement = increment
                 fullRaiseCount += 1
+                shortRaiseSum = 0
+            } else if increment > 0 {
+                // Several short all-ins that add up to a full raise reopen the betting (TDA rule).
+                shortRaiseSum += increment
+                if shortRaiseSum >= minRaiseIncrement {
+                    fullRaiseCount += 1
+                    shortRaiseSum = 0
+                }
             }
             currentBet = max(currentBet, to)
             lastAggressorThisStreet = seat
@@ -303,6 +321,7 @@ public struct HandState: Sendable {
         if players[i].stack == 0 && !players[i].folded { players[i].allIn = true }
         players[i].actedThisStreet = true
         players[i].actedAtRaiseCount = fullRaiseCount
+        players[i].actedAtBet = currentBet
         actions.append(PlayerAction(index: actions.count, seat: seat, street: street, type: type, added: added,
                                     toAmount: players[i].committedStreet, potBefore: potBefore, toCallBefore: legal.toCall,
                                     isAllIn: players[i].allIn))
@@ -388,7 +407,9 @@ public struct HandState: Sendable {
             players[i].committedStreet = 0
             players[i].actedThisStreet = false
             players[i].actedAtRaiseCount = -1
+            players[i].actedAtBet = 0
         }
+        shortRaiseSum = 0
         currentBet = 0
         minRaiseIncrement = config.bigBlind
         fullRaiseCount = 0
@@ -441,7 +462,9 @@ public struct HandState: Sendable {
                 let eligible = live.filter { $0.committedTotal >= level }.map(\.seat)
                 let best = eligible.map { values[$0]! }.max()!
                 // Winners in clockwise order from the button (players array is already in that order).
-                let winners = players.map(\.seat).filter { eligible.contains($0) && values[$0]! == best }
+                // Heads-up the first seat left of the button is the big blind (players[1]).
+                let order = players.count == 2 ? players.reversed().map(\.seat) : players.map(\.seat)
+                let winners = order.filter { eligible.contains($0) && values[$0]! == best }
                 let share = amount / winners.count
                 var odd = amount - share * winners.count
                 for w in winners {

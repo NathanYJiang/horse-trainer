@@ -236,8 +236,7 @@ struct CoachPanel: View {
 
     /// Cash tables: grades exist but stay sealed until the session ends, like finding out in review.
     var sealed: some View {
-        let graded = game.history.reduce(0) { $0 + $1.notes.count } + game.notesThisHand.count
-        return VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             Panel {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -246,7 +245,6 @@ struct CoachPanel: View {
                     }
                     Text("At Cash Game tables you play like it's real: no types, no live coaching. The coach is still grading every key decision. End the session to see the grades, your leaks and how you did against each type.")
                         .font(Theme.ui(12.5)).foregroundStyle(Theme.textDim).fixedSize(horizontal: false, vertical: true)
-                    Text("\(graded) decision\(graded == 1 ? "" : "s") graded so far").font(Theme.mono(11.5)).foregroundStyle(Theme.textFaint)
                     Button("End session and reveal") { app.modal = .sessionReport(game, startNewAfter: true) }
                         .buttonStyle(PillButtonStyle(prominent: false))
                         .disabled(game.stats.hands == 0)
@@ -551,9 +549,9 @@ struct NewTableSheet: View {
                 HStack {
                     SectionLabel("Players")
                     Spacer()
-                    Text("\(Int(seats))-handed\(Int(seats) == 2 ? " · heads-up" : (Int(seats) <= 6 ? " · short-handed" : ""))").font(Theme.mono(12))
+                    Text("\(Int(seats))-handed\(Int(seats) <= 6 ? " · short-handed" : "")").font(Theme.mono(12))
                 }
-                BlockSlider(value: $seats, range: 2...9, step: 1)
+                BlockSlider(value: $seats, range: 3...9, step: 1)
                 Text("Live 1/2 is usually 9-handed. Short-handed means more pots and more decisions per hour.")
                     .font(Theme.ui(12)).foregroundStyle(Theme.textDim)
                 HStack {

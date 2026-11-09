@@ -111,8 +111,9 @@ public enum BotBrain {
                 return raise(to: size)
             }
             if legal.canCheck { return .check }
+            // Completing the small blind is cheap, so it's a bit wider than the normal playing range.
+            if pos == .sb && pct <= vpipRange * 1.3 { return .call }
             if pct <= vpipRange {
-                if pos == .sb && (pct <= vpipRange * 1.3) { return .call }
                 let limpProb = sit.limpers.isEmpty ? p.limpPreference : min(1, p.limpPreference + 0.3)
                 return roll() < limpProb ? .call : .fold
             }

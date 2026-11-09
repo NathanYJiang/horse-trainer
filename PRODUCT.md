@@ -63,9 +63,9 @@ seat):
 | Average open (no limpers, no straddle) | ~$12.5 | $10–16 |
 | Rake per hand | ~$3.40 | $3–5 |
 | Fish / whale fold to c-bet | ~40% | under 50% |
-| Whale / fish win rate | about −170 / −125 bb/100 | big losers |
-| Trying rec / nit win rate | about −2 / +13 bb/100 | near break-even after rake |
-| Reg win rate | about +40 bb/100 (~12 bb/hr) | solid live winner, 5–15 bb/hr |
+| Whale / fish win rate | about −200 / −105 bb/100 | big losers |
+| Trying rec / nit win rate | about 0 / +10 bb/100 | near break-even after rake |
+| Reg win rate | about +15–35 bb/100 (5–12 bb/hr) | solid live winner, 5–15 bb/hr |
 
 Live win rates are usually quoted per hour; at ~30 hands an hour, 10 bb/hr is
 about 33 bb/100. The reference bands are typical figures for live low stakes,
@@ -107,7 +107,7 @@ not a specific dataset.
 - **Analyze session**: Claude reviews the whole session. It gets your stats vs.
   a winning 1/2 profile, the leaks grouped by principle, how you adjusted to
   each type, the biggest pots, and the next drills to run.
-- Table size is adjustable from 2 to 9 players. The default is 9-max, like live 1/2; a 6-max / 9-handed toggle sits in the practice bar.
+- Table size is adjustable from 3 to 9 players. The default is 9-max, like live 1/2; a 6-max / 9-handed toggle sits in the practice bar.
 - **Practice filter (spot mode, Training Table only)**: pick a real spot (limpers in front, facing an open, blind defense, facing a 3-bet, c-bet or check, facing a c-bet, turn/river bets, your bet got raised, river value, multiway) and optionally a villain type. The table fast-forwards (a solid-reg autopilot plays your earlier streets) until you face that decision, then you play the hand out and the coach grades it. Spot hands are kept out of your session stat benchmarks; results feed skill history.
 - **Pre-actions**: while others act you can pre-select Check/Fold, Check, or Call any (F / K / C). When you're out of the hand, Space skips to the next hand instantly. Auto-deal is a one-click toggle in the action bar.
 - Hand history log, with showdowns visible (the "tabled" hands you'd see live).

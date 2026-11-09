@@ -18,8 +18,13 @@ struct HandRecord: Identifiable {
     let notes: [CoachNote]
     let heroNet: Int?
     let heroInHand: Bool
-    let publicText: String
-    let coachText: String
+    let profiles: [Int: Profile]
+
+    private var heroSeat: Int? { heroInHand ? TableSession.heroSeat : nil }
+    /// What you saw at the table (no types). Formatted on demand.
+    var publicText: String { HandHistoryFormatter.format(state, heroSeat: heroSeat, profiles: profiles, revealTypes: false) }
+    /// With true types and coach notes, for reviews.
+    var coachText: String { HandHistoryFormatter.format(state, heroSeat: heroSeat, profiles: profiles, revealTypes: true, notes: notes) }
 }
 
 enum Premove: Equatable {
@@ -59,6 +64,9 @@ final class GameController {
     private(set) var hand: HandState?
     private(set) var notesThisHand: [CoachNote] = []
     private(set) var history: [HandRecord] = []
+    /// Every coach note this session (history is capped, the session report isn't).
+    private(set) var allNotes: [CoachNote] = []
+    private var sessionRecorded = false
     private(set) var lastAction: [Int: String] = [:]
     private(set) var quiz: QuizResult?
     var showHUD = false
@@ -67,6 +75,7 @@ final class GameController {
     var playerNotes: [UUID: String] = [:]
     private var loopTask: Task<Void, Never>?
     private var dealTask: Task<Void, Never>?
+    private var spotTask: Task<Void, Never>?
 
     /// Pre-selected action that fires as soon as it's the hero's turn.
     var premove: Premove?
@@ -92,6 +101,10 @@ final class GameController {
         self.results = results
         session = TableSession(preset: preset, seats: seats)
         heroSittingOut = mode == .reads
+        if mode == .cash {
+            if Self.autopilot { results?.persist = false }
+            results?.seal(sessionID)
+        }
     }
 
     // MARK: - Derived state
@@ -124,10 +137,15 @@ final class GameController {
         endSession()
         loopTask?.cancel()
         dealTask?.cancel()
+        spotTask?.cancel()
+        findingSpot = false
         session = TableSession(preset: preset, seats: seats)
         sessionID = UUID()
+        sessionRecorded = false
+        if mode == .cash { results?.seal(sessionID) }
         hand = nil
         history = []
+        allNotes = []
         notesThisHand = []
         lastAction = [:]
         tags = [:]
@@ -163,22 +181,25 @@ final class GameController {
         spotKind = kind
         spotVillain = villain
         spotMessage = nil
-        if !handInProgress && kind != .any && !heroSittingOut { dealNext() }
+        if findingSpot {
+            // Restart the search for the new filter (or stop searching for "Full hands").
+            spotTask?.cancel()
+            findingSpot = false
+        }
+        if !handInProgress && spotMode && !heroSittingOut { dealNext() }
     }
 
     /// Fast-forwards (off the main thread) to a hand where the hero faces the chosen spot.
     private func dealSpot() {
         findingSpot = true
         spotMessage = nil
-        let base = session, kind = spotKind, villain = spotVillain
-        Task { [weak self] in
+        let base = session, kind = spotKind, villain = spotVillain, table = sessionID
+        spotTask = Task { [weak self] in
             let found = await Task.detached(priority: .userInitiated) { SpotFinder.find(kind, against: villain, from: base) }.value
-            guard let self else { return }
+            // Anything that changed the table, filter or seat while we searched invalidates the result.
+            guard let self, !Task.isCancelled, self.sessionID == table, self.spotKind == kind, self.spotVillain == villain else { return }
             self.findingSpot = false
-            if self.spotKind != kind || self.spotVillain != villain {
-                self.dealNext()
-                return
-            }
+            guard !self.heroSittingOut else { return }
             guard let found, !self.handInProgress else {
                 if found == nil { self.spotMessage = "Couldn't find that spot\(villain.map { " vs a \($0.name)" } ?? "") at this table. Try another filter or a new table." }
                 return
@@ -269,6 +290,7 @@ final class GameController {
     private func completeHandIfNeeded() {
         guard let h = hand, h.isComplete, history.first?.id != h.handNumber else { return }
         premove = nil
+        allNotes += notesThisHand
         session.finishHand(h, trackHero: !currentHandIsSpot)
         if currentHandIsSpot {
             spotScore.spots += 1
@@ -292,23 +314,50 @@ final class GameController {
             results?.record(hand: h, heroSeat: heroSeat, notes: notesThisHand, sessionID: sessionID, seats: session.seatCount,
                             preset: session.preset.name, heroStats: heroStats, profiles: session.profilesBySeat)
         }
-        if settings.autoDeal || heroSittingOut || Self.autopilot {
-            let wait = heroSittingOut ? max(1.2, settings.botSpeed * 2.5) : 2.5
-            dealTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(wait))
-                if Task.isCancelled { return }
-                self?.dealNext()
+        if settings.autoDeal || heroSittingOut || Self.autopilot { scheduleDeal() }
+    }
+
+    private func scheduleDeal() {
+        dealTask?.cancel()
+        let wait = heroSittingOut ? max(1.2, settings.botSpeed * 2.5) : 2.5
+        dealTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            if Task.isCancelled { return }
+            self?.dealNext()
+        }
+    }
+
+    /// Plays bots instantly until it's the hero's turn or the hand ends. With `heroFolds`, the hero folds when it's their turn.
+    private func fastForward(_ h: inout HandState, heroFolds: Bool = false) {
+        var steps = 0
+        while !h.isComplete, let seat = h.currentSeat, steps < 1000 {
+            steps += 1
+            if seat == heroSeat {
+                guard heroFolds else { return }
+                h.apply(.fold)
+            } else if let d = session.botDecision(h) {
+                h.apply(d)
+                if let a = h.actions.last { lastAction[seat] = Self.bubble(a) }
+            } else {
+                return
             }
         }
     }
 
+    /// Leaving mid-hand (new table, end session, quitting) folds the hero so the chips already in are counted.
+    func abandonHand() {
+        guard var h = hand, !h.isComplete else { return }
+        loopTask?.cancel()
+        fastForward(&h, heroFolds: true)
+        hand = h
+        completeHandIfNeeded()
+        dealTask?.cancel()
+    }
+
     private func appendRecord(_ h: HandState, notes: [CoachNote]) {
-        let profiles = session.profilesBySeat
         let heroIn = h.player(seat: heroSeat) != nil
-        let rec = HandRecord(
-            state: h, notes: notes, heroNet: heroIn ? h.result?.net[heroSeat] : nil, heroInHand: heroIn,
-            publicText: HandHistoryFormatter.format(h, heroSeat: heroIn ? heroSeat : nil, profiles: profiles, revealTypes: false),
-            coachText: HandHistoryFormatter.format(h, heroSeat: heroIn ? heroSeat : nil, profiles: profiles, revealTypes: true, notes: notes))
+        let rec = HandRecord(state: h, notes: notes, heroNet: heroIn ? h.result?.net[heroSeat] : nil, heroInHand: heroIn,
+                             profiles: session.profilesBySeat)
         history.insert(rec, at: 0)
         if history.count > 300 { history.removeLast() }
     }
@@ -317,11 +366,7 @@ final class GameController {
     func debugAdvanceToHero(maxHands: Int = 30) {
         for _ in 0..<maxHands {
             var h = session.startHand()
-            while !h.isComplete && h.currentSeat != heroSeat, let d = session.botDecision(h) {
-                let seat = h.currentSeat!
-                h.apply(d)
-                if let a = h.actions.last { lastAction[seat] = Self.bubble(a) }
-            }
+            fastForward(&h)
             hand = h
             if !h.isComplete { return }
             session.finishHand(h)
@@ -334,11 +379,7 @@ final class GameController {
     func skipToNextHand() {
         guard var h = hand, !h.isComplete, !heroInCurrentHand else { return }
         loopTask?.cancel()
-        var guardCount = 0
-        while !h.isComplete, h.currentSeat != heroSeat, let d = session.botDecision(h), guardCount < 500 {
-            h.apply(d)
-            guardCount += 1
-        }
+        fastForward(&h)
         hand = h
         completeHandIfNeeded()
         dealTask?.cancel()
@@ -359,12 +400,18 @@ final class GameController {
             hand = h
         }
         lastAction = [:]
+        if heroSittingOut { scheduleDeal() }
     }
 
     func toggleSitOut() {
         heroSittingOut.toggle()
-        if heroSittingOut && !handInProgress { dealNext() }
-        if !heroSittingOut { dealTask?.cancel() }
+        if heroSittingOut {
+            spotTask?.cancel()
+            findingSpot = false
+            if !handInProgress { dealNext() }
+        } else {
+            dealTask?.cancel()
+        }
     }
 
     // MARK: - Reads quiz
@@ -384,8 +431,16 @@ final class GameController {
 
     func dismissQuiz() { quiz = nil }
 
+    /// Finishes any hand in progress, saves the session to Progress, and unseals it in the Tracker.
     func endSession() {
+        abandonHand()
+        if mode == .cash {
+            results?.unseal()
+            results?.save()
+        }
         let s = session.stats
+        guard !sessionRecorded, s.hands > 0 else { return }
+        sessionRecorded = true
         store.recordSession(SessionRecord(preset: session.preset.name, hands: s.hands, net: s.net, good: s.good,
                                           inaccuracies: s.inaccuracies, mistakes: s.mistakes))
     }
@@ -424,18 +479,11 @@ final class GameController {
             let tag = tags[b.id].map { " [hero tagged: \($0.name)]" } ?? ""
             out += "- \(b.name): \(b.type.name)\(tag). \(st.hands) hands, VPIP \(st.vpipText), PFR \(st.pfrText), AF \(st.afText). Quirks: \(b.profile.quirks.joined(separator: "; "))\n"
         }
-        let notes = history.flatMap(\.notes)
-        var byPrinciple: [String: (Int, Int)] = [:]
-        for n in notes where n.grade == .mistake || n.grade == .inaccuracy {
-            let k = n.principle?.title ?? n.headline
-            let cur = byPrinciple[k] ?? (0, 0)
-            byPrinciple[k] = n.grade == .mistake ? (cur.0 + 1, cur.1) : (cur.0, cur.1 + 1)
-        }
-        if !byPrinciple.isEmpty {
+        let notes = allNotes
+        let leaks = SessionFeedback.make(stats: s, hero: h, notes: notes, bigBlind: session.config.bigBlind).leaksByPrinciple
+        if !leaks.isEmpty {
             out += "\nFLAGGED LEAKS (mistakes / inaccuracies):\n"
-            for (k, v) in byPrinciple.sorted(by: { ($0.value.0 * 2 + $0.value.1) > ($1.value.0 * 2 + $1.value.1) }) {
-                out += "- \(k): \(v.0) / \(v.1)\n"
-            }
+            for l in leaks { out += "- \(l.principle): \(l.mistakes) / \(l.inaccuracies)\n" }
         }
         let flagged = notes.filter { $0.grade == .mistake || $0.grade == .inaccuracy }.suffix(15)
         if !flagged.isEmpty {
