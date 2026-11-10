@@ -84,7 +84,7 @@ not a specific dataset.
 - Scoring: +10 XP per correct rep, with a combo multiplier (×2 at 3 in a row, ×3 at 6). Finishing a workout gives +50 XP and counts toward your daily streak. 20 reps or a 30+ hand session also counts as an active day. Levels run from Tourist up to Pro.
 
 ### 3.1 Cash Game, Training Table and Tracker
-- **Cash Game** (tracked, label-free): the closest thing to real reps. Types are hidden with no reveal button, there is no spot filter, and the coach grades every decision but seals them until you end the session. Every hand is recorded in the Tracker. Hand reviews with Claude get only what you could see.
+- **Cash Game** (tracked, label-free): the closest thing to real reps. Types are hidden with no reveal button, there is no spot filter, and the coach grades every decision but seals them until you end the session. Every hand is recorded in the Tracker. Hand reviews with Claude get only what you could see. No HUD numbers either (VPIP, PFR and so on aren't visible at a live table): the Reads tab keeps only tags, notes and what you saw (sizings, showdowns).
 - **Training Table** (training wheels): Show types, instant coaching, the practice/spot filter, per-hand Claude reviews with types. Not tracked.
 - **Tracker**: like HM/PT for the simulated pool. Cumulative winnings graph (total / showdown / non-showdown, hover crosshair), hands, net, bb/100 with a 95% interval, live-hour equivalent (30 hands/hr) and $/hr, "real or luck" variance read with hands needed to pin the win rate down, lifetime stats vs a winning 1/2 profile, simulated EV lost and read cost (bb/100), results by position and by opponent type (revealed after the fact), and a session list with coach grades and EV lost. Stored in `tracker.json`.
 
@@ -120,6 +120,8 @@ not a specific dataset.
   Claude for a deeper write-up. Follow-up questions are supported.
 - Session stats: hands, net $, bb/100, decision grade breakdown.
 - **End session → Session report** (every session): a one-line verdict that separates results from decision quality, your stats against a winning live 1/2 profile (VPIP, PFR, limp, 3-bet, c-bet, AF, WTSD), ranked findings each with a one-click drill, and a full Claude review.
+- **Hand replayer**: the report's Hands tab (and Replay buttons in the Coach and History tabs) steps through any hand on a mini table: ← → per action, ↑ ↓ per hand, jump to a street, click any action in the log. Each graded decision sits beside the log and highlights when you reach it. Mid-session in Cash Game it shows only what you saw; after the session, grades, true types and (optionally) every hole card.
+- **Action bar**: three fixed slots (fold, check/call, bet/raise or deal next) that never move; pre-actions sit in the same slots, and clicks are ignored for a beat after a slot changes meaning.
 - **Analyze session**: Claude reviews the whole session. It gets your stats vs.
   a winning 1/2 profile, the leaks grouped by principle, how you adjusted to
   each type, the biggest pots, and the next drills to run.

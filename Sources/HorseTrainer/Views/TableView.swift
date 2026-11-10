@@ -225,7 +225,7 @@ struct SeatView: View {
     func label(_ text: String, _ color: Color) -> some View {
         Text(text)
             .font(Theme.ui(10.5, .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(color == Theme.text ? Theme.onPrimary : .white)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(RoundedRectangle(cornerRadius: 3).fill(color))
@@ -239,74 +239,143 @@ struct SeatView: View {
     }
 }
 
+/// Fixed layout: three action slots and the sizing row never move, so a fast click can't land on the wrong button.
+/// Slot 1 = fold, slot 2 = check / call, slot 3 = bet / raise (or deal next when the hand is over).
 struct ActionBar: View {
     let game: GameController
+    @Environment(AppModel.self) private var app
     @State private var amount: Double = 0
     @State private var amountText = ""
+    /// Clicks are ignored for a moment after the buttons change meaning (e.g. Deal → Raise).
+    @State private var armedAt = Date.distantPast
+
+    static let slotWidth: CGFloat = 138
+
+    enum Phase: Equatable { case act, premove, idle, busy }
+
+    var phase: Phase {
+        if game.legal != nil && game.hand != nil { return .act }
+        if game.findingSpot { return .busy }
+        if game.hand?.isComplete ?? true { return game.heroSittingOut ? .busy : .idle }
+        if game.heroInCurrentHand { return .premove }
+        return game.heroSittingOut ? .busy : .idle
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            if let legal = game.legal, let h = game.hand {
-                controls(legal, h)
-            } else if game.findingSpot {
-                ProgressView().controlSize(.small)
-                Text("Dealing until: \(game.spotKind.title)…").font(Theme.ui(12.5)).foregroundStyle(Theme.textDim)
-                Spacer()
-            } else if game.hand?.isComplete ?? true {
-                if game.heroSittingOut {
-                    Text("Sitting out. Hands deal automatically.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
-                    Spacer()
-                } else {
-                    if let m = game.spotMessage, game.hand == nil || !game.currentHandIsSpot {
-                        Text(m).font(Theme.ui(12)).foregroundStyle(Theme.warn)
-                    }
-                    Spacer()
-                    autoDealToggle
-                    Button { game.dealNext() } label: { Text(game.spotMode ? "Next spot" : "Deal next hand").frame(minWidth: 180) }
-                        .buttonStyle(PillButtonStyle(large: true))
-                        .keyboardShortcut(.space, modifiers: [])
-                }
-            } else if game.heroInCurrentHand {
-                Text("Waiting for other players…").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
-                Spacer()
-                premoves
-            } else {
-                Text(game.heroSittingOut ? "Sitting out. Hands deal automatically." : "You're out of this hand.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
-                Spacer()
-                if !game.heroSittingOut {
-                    autoDealToggle
-                    Button { game.skipToNextHand() } label: { Text(game.spotMode ? "Skip to next spot" : "Skip to next hand").frame(minWidth: 180) }
-                        .buttonStyle(PillButtonStyle(large: true))
-                        .keyboardShortcut(.space, modifiers: [])
-                }
+        HStack(spacing: 14) {
+            status
+                .frame(maxWidth: .infinity, alignment: .leading)
+            autoDealToggle
+            VStack(alignment: .trailing, spacing: 8) {
+                sizingRow
+                HStack(spacing: 8) { slot1; slot2; slot3 }
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: 92)
+        .frame(height: 104)
         .background(Theme.surface)
         .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
+        .onChange(of: phase) { armedAt = Date() }
+        .onChange(of: game.hand?.handNumber) { armedAt = Date() }
+        .onAppear { if let l = game.legal, let h = game.hand { setAmount(Double(defaultAmount(l, h)), l) } }
+        .onChange(of: game.hand?.actions.count) {
+            if let l = game.legal, let h = game.hand { setAmount(Double(defaultAmount(l, h)), l) }
+        }
     }
 
-    @Environment(AppModel.self) private var app
+    func guarded(_ f: @escaping () -> Void) -> () -> Void {
+        { if app.modal == nil && Date().timeIntervalSince(armedAt) > 0.35 { f() } }
+    }
+
+    // MARK: Left side
+
+    @ViewBuilder var status: some View {
+        switch phase {
+        case .busy where game.findingSpot:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Dealing until: \(game.spotKind.title)…").font(Theme.ui(12.5)).foregroundStyle(Theme.textDim)
+            }
+        case .busy:
+            Text("Sitting out. Hands deal automatically.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+        case .premove:
+            Text("Waiting for other players… pre-select below.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+        case .idle:
+            if game.hand.map({ !$0.isComplete }) ?? false {
+                Text("You're out of this hand.").font(Theme.ui(12)).foregroundStyle(Theme.textDim)
+            } else if let m = game.spotMessage, game.hand == nil || !game.currentHandIsSpot {
+                Text(m).font(Theme.ui(12)).foregroundStyle(Theme.warn)
+            }
+        case .act:
+            if let l = game.legal, l.toCall > 0, let h = game.hand {
+                Text("$\(l.callAmount) to call · pot $\(h.pot)").font(Theme.mono(12)).foregroundStyle(Theme.textDim)
+            }
+        }
+    }
 
     var autoDealToggle: some View {
         PreToggle(title: "Auto-deal", on: app.settings.autoDeal) { app.settings.autoDeal.toggle() }
             .help("Deal the next hand automatically a moment after each hand ends")
     }
 
-    /// Pre-select an action while others are still acting. F / C work as shortcuts.
-    @ViewBuilder var premoves: some View {
-        let toCall = game.hand.flatMap { h in h.player(seat: game.heroSeat).map { max(0, h.currentBet - $0.committedStreet) } } ?? 0
-        HStack(spacing: 6) {
-            SectionLabel("Pre-act").padding(.trailing, 4)
-            PreToggle(title: toCall > 0 ? "Fold" : "Check/Fold", on: game.premove == .checkFold) { toggle(.checkFold) }
+    // MARK: Slots
+
+    var toCallWhileWaiting: Int {
+        game.hand.flatMap { h in h.player(seat: game.heroSeat).map { max(0, h.currentBet - $0.committedStreet) } } ?? 0
+    }
+
+    @ViewBuilder var slot1: some View {
+        switch phase {
+        case .act:
+            let l = game.legal!
+            ActionSlot(title: "Fold", enabled: l.toCall > 0, action: guarded { game.heroAct(.fold) })
                 .keyboardShortcut("f", modifiers: [])
-            if toCall == 0 {
-                PreToggle(title: "Check", on: game.premove == .check) { toggle(.check) }
-                    .keyboardShortcut("k", modifiers: [])
-            }
-            PreToggle(title: toCall > 0 ? "Call any" : "Check/Call any", on: game.premove == .callAny) { toggle(.callAny) }
+        case .premove:
+            PreSlot(title: toCallWhileWaiting > 0 ? "Fold" : "Check/Fold", on: game.premove == .checkFold) { toggle(.checkFold) }
+                .keyboardShortcut("f", modifiers: [])
+        default:
+            ActionSlot.placeholder
+        }
+    }
+
+    @ViewBuilder var slot2: some View {
+        switch phase {
+        case .act:
+            let l = game.legal!
+            ActionSlot(title: l.canCheck ? "Check" : "Call", sub: l.canCheck ? nil : "$\(l.callAmount)",
+                       action: guarded { game.heroAct(l.canCheck ? .check : .call) })
                 .keyboardShortcut("c", modifiers: [])
+        case .premove:
+            if toCallWhileWaiting == 0 {
+                PreSlot(title: "Check", on: game.premove == .check) { toggle(.check) }
+                    .keyboardShortcut("k", modifiers: [])
+            } else {
+                ActionSlot.placeholder
+            }
+        default:
+            ActionSlot.placeholder
+        }
+    }
+
+    @ViewBuilder var slot3: some View {
+        switch phase {
+        case .act:
+            let l = game.legal!
+            let to = Int(amount)
+            ActionSlot(title: !l.canRaise ? "Raise" : (to >= l.maxRaiseTo ? "All-in" : (l.isBet ? "Bet" : "Raise to")),
+                       sub: l.canRaise ? "$\(to)" : nil, primary: l.canRaise, enabled: l.canRaise,
+                       action: guarded { game.heroAct(.raise(to: to)) })
+                .keyboardShortcut("r", modifiers: [])
+        case .premove:
+            PreSlot(title: toCallWhileWaiting > 0 ? "Call any" : "Check/Call any", on: game.premove == .callAny) { toggle(.callAny) }
+                .keyboardShortcut("c", modifiers: [])
+        case .idle:
+            let inHand = game.hand.map { !$0.isComplete } ?? false
+            ActionSlot(title: game.spotMode ? (inHand ? "Skip to next spot" : "Next spot") : (inHand ? "Skip hand" : "Deal next"),
+                       sub: nil, primary: true, action: guarded { inHand ? game.skipToNextHand() : game.dealNext() })
+                .keyboardShortcut(.space, modifiers: [])
+        case .busy:
+            ActionSlot.placeholder
         }
     }
 
@@ -314,69 +383,31 @@ struct ActionBar: View {
         game.premove = game.premove == p ? nil : p
     }
 
-    @ViewBuilder
-    func controls(_ legal: LegalActions, _ h: HandState) -> some View {
-        let presets = presetAmounts(legal, h)
-        Spacer()
-        VStack(alignment: .trailing, spacing: 8) {
-            if legal.canRaise {
-                HStack(spacing: 6) {
-                    ForEach(presets, id: \.label) { p in
-                        Button(p.label) { setAmount(Double(p.to), legal) }
-                            .buttonStyle(PillButtonStyle(color: Theme.surface3, prominent: Int(amount) == p.to, small: true))
-                    }
-                    BlockSlider(value: Binding(get: { amount }, set: { setAmount($0.rounded(), legal) }),
-                                range: Double(legal.minRaiseTo)...Double(max(legal.minRaiseTo + 1, legal.maxRaiseTo)))
-                        .frame(width: 180)
-                    TextField("", text: $amountText)
-                        .textFieldStyle(.plain)
-                        .font(Theme.mono(13))
-                        .multilineTextAlignment(.trailing)
-                        .padding(.horizontal, 6)
-                        .frame(width: 64, height: 24)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.bg))
-                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Theme.borderStrong))
-                        .onSubmit { if let v = Double(amountText) { setAmount(v, legal) } }
+    /// Presets, slider and amount box. Always laid out so nothing below it shifts; hidden unless you can bet.
+    @ViewBuilder var sizingRow: some View {
+        let active = phase == .act && (game.legal?.canRaise ?? false)
+        HStack(spacing: 6) {
+            if active, let legal = game.legal, let h = game.hand {
+                ForEach(presetAmounts(legal, h), id: \.label) { p in
+                    Button(p.label) { setAmount(Double(p.to), legal) }
+                        .buttonStyle(PillButtonStyle(color: Color.white.opacity(0.16), prominent: Int(amount) == p.to, small: true))
                 }
-                .fixedSize()
-            }
-            HStack(spacing: 8) {
-                if legal.toCall > 0 {
-                    actionButton("Fold", nil, key: "f", primary: false) { game.heroAct(.fold) }
-                }
-                actionButton(legal.canCheck ? "Check" : "Call", legal.canCheck ? nil : "$\(legal.callAmount)", key: "c", primary: !legal.canRaise) {
-                    game.heroAct(legal.canCheck ? .check : .call)
-                }
-                if legal.canRaise {
-                    let to = Int(amount)
-                    actionButton(to >= legal.maxRaiseTo ? "All-in" : (legal.isBet ? "Bet" : "Raise to"), "$\(to)", key: "r", primary: true) {
-                        game.heroAct(.raise(to: to))
-                    }
-                }
+                BlockSlider(value: Binding(get: { amount }, set: { setAmount($0.rounded(), legal) }),
+                            range: Double(legal.minRaiseTo)...Double(max(legal.minRaiseTo + 1, legal.maxRaiseTo)))
+                    .frame(width: 170)
+                TextField("", text: $amountText)
+                    .textFieldStyle(.plain)
+                    .font(Theme.mono(13))
+                    .multilineTextAlignment(.trailing)
+                    .padding(.horizontal, 10)
+                    .frame(width: 72, height: 26)
+                    .background(Capsule().fill(Theme.bg))
+                    .overlay(Capsule().strokeBorder(Theme.borderStrong, lineWidth: 0.75))
+                    .onSubmit { if let v = Double(amountText) { setAmount(v, legal) } }
             }
         }
-        .onAppear { setAmount(Double(defaultAmount(legal, h)), legal) }
-        .onChange(of: h.actions.count) { setAmount(Double(defaultAmount(legal, h)), legal) }
-    }
-
-    func actionButton(_ title: String, _ sub: String?, key: KeyEquivalent, primary: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(title).font(Theme.ui(13, .medium))
-                    if let sub { Text(sub).font(Theme.mono(12.5, .semibold)) }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .frame(width: 128, height: 44)
-            .foregroundStyle(primary ? Theme.onPrimary : Theme.text)
-            .background(RoundedRectangle(cornerRadius: Theme.radiusSm).fill(primary ? Theme.primary : Theme.surface2))
-            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(primary ? .clear : Theme.borderStrong))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut(key, modifiers: [])
+        .frame(height: 26)
+        .fixedSize()
     }
 
     func setAmount(_ v: Double, _ legal: LegalActions) {
@@ -425,6 +456,74 @@ struct ActionBar: View {
     }
 }
 
+/// One fixed-size action slot. Placeholders keep the geometry when a slot has nothing to offer.
+struct ActionSlot: View {
+    let title: String
+    var sub: String?
+    var primary = false
+    var enabled = true
+    let action: () -> Void
+    @State private var hover = false
+
+    static var placeholder: some View {
+        Capsule().strokeBorder(Color.white.opacity(0.05), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+            .frame(width: ActionBar.slotWidth, height: 46)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                Text(title).font(Theme.ui(13.5, .semibold))
+                if let sub { Text(sub).font(Theme.mono(12, .medium)).opacity(0.75) }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(width: ActionBar.slotWidth, height: 46)
+            .foregroundStyle(primary ? Theme.onPrimary : Theme.text)
+            .glassCapsule(fill: primary ? Theme.primary.opacity(0.92) : Color.white.opacity(0.07), hover: hover && enabled, pressed: false, dark: primary)
+        }
+        .buttonStyle(PressScale())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.3)
+        .onHover { hover = $0 }
+    }
+}
+
+/// Pre-action checkbox drawn in an action slot, so the click target stays where the real action will appear.
+struct PreSlot: View {
+    let title: String
+    let on: Bool
+    let action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Circle()
+                    .strokeBorder(on ? Theme.text : Theme.borderStrong, lineWidth: 1.5)
+                    .background(Circle().fill(on ? Theme.text : .clear).padding(3.5))
+                    .frame(width: 14, height: 14)
+                Text(title).font(Theme.ui(12.5, .medium)).foregroundStyle(on ? Theme.text : Theme.textDim)
+            }
+            .lineLimit(1)
+            .frame(width: ActionBar.slotWidth, height: 46)
+            .glassCapsule(fill: Color.white.opacity(on ? 0.12 : 0.04), hover: hover, pressed: false)
+        }
+        .buttonStyle(PressScale())
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: on)
+    }
+}
+
+struct PressScale: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .brightness(configuration.isPressed ? -0.06 : 0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
 /// Checkbox-style chip used for pre-actions.
 struct PreToggle: View {
     let title: String
@@ -434,20 +533,17 @@ struct PreToggle: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 7) {
-                RoundedRectangle(cornerRadius: 3)
-                    .strokeBorder(on ? Theme.text : Theme.borderStrong, lineWidth: 1.5)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(on ? Theme.text : .clear).padding(3))
-                    .frame(width: 13, height: 13)
+                Capsule().fill(on ? Theme.good : Color.white.opacity(0.14))
+                    .frame(width: 22, height: 13)
+                    .overlay(alignment: on ? .trailing : .leading) { Circle().fill(.white).frame(width: 9, height: 9).padding(2) }
                 Text(title).font(Theme.ui(12.5, .medium)).foregroundStyle(on ? Theme.text : Theme.textDim)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .frame(height: 32)
-            .background(RoundedRectangle(cornerRadius: Theme.radiusSm).fill(on ? Theme.surface3 : Theme.surface2))
-            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(on ? Theme.borderStrong : Theme.border))
-            .contentShape(Rectangle())
-            .animation(.easeOut(duration: 0.12), value: on)
+            .glassCapsule(fill: Color.white.opacity(0.05), hover: false, pressed: false)
+            .animation(.easeOut(duration: 0.15), value: on)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScale())
         .fixedSize()
     }
 }

@@ -74,13 +74,13 @@ struct LiveTableScreen: View {
             }
             Rectangle().fill(Theme.border).frame(width: 1, height: 28).padding(.horizontal, 4)
             if game.revealsTypes {
-                Button(game.showHUD ? "Hide types" : "Show types") { game.showHUD.toggle() }
+                Button { game.showHUD.toggle() } label: { Text(game.showHUD ? "Hide types" : "Show types").frame(minWidth: 76) }
                     .buttonStyle(PillButtonStyle(color: Theme.surface3, prominent: game.showHUD))
                     .disabled(game.mode == .reads && game.quiz == nil && !game.showHUD)
                     .help(game.mode == .reads ? "Submit your reads to unlock the reveal" : "Reveal true player types (for learning)")
                     .fixedSize()
             }
-            Button(game.heroSittingOut ? "Sit in" : "Sit out") { game.toggleSitOut() }
+            Button { game.toggleSitOut() } label: { Text(game.heroSittingOut ? "Sit in" : "Sit out").frame(minWidth: 44) }
                 .buttonStyle(PillButtonStyle(prominent: false))
                 .fixedSize()
             Menu {
@@ -101,11 +101,9 @@ struct LiveTableScreen: View {
                     Text("Session").font(Theme.ui(13, .medium))
                     Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.textDim)
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 14)
                 .frame(height: 32)
-                .background(RoundedRectangle(cornerRadius: Theme.radiusSm).fill(Theme.surface2))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(Theme.border))
-                .contentShape(Rectangle())
+                .glassCapsule(fill: Color.white.opacity(0.06), hover: false, pressed: false)
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
@@ -252,7 +250,12 @@ struct CoachPanel: View {
                 }
             }
             if let rec = game.history.first(where: { $0.heroInHand }) {
-                Text("LAST HAND #\(rec.id)").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
+                HStack {
+                    Text("LAST HAND #\(rec.id)").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim)
+                    Spacer()
+                    Button { app.modal = .handViewer(game, hand: rec.id) } label: { Label("Replay", systemImage: "play.fill") }
+                        .buttonStyle(PillButtonStyle(prominent: false, small: true))
+                }
                 Text(rec.publicText).font(Theme.mono(11, .regular)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -309,6 +312,10 @@ struct CoachPanel: View {
                     ForEach(rec.notes) { NoteCard(note: $0) }
                     ForEach(sims) { SimCard(eval: $0) }
                 }
+                Button { app.modal = .handViewer(game, hand: rec.id) } label: {
+                    Label("Replay hand #\(rec.id)", systemImage: "play.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
                 Button {
                     app.openChat(title: "Hand #\(rec.id) review", context: "Live 1/2 hand history (villain types shown in brackets, which hero may not have known):\n\n" + rec.coachText,
                                  question: "Review my play in this hand street by street against these specific player types. What was the best exploitative line, and was the rule-coach's grading right?")
@@ -420,6 +427,7 @@ struct ReadRow: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }
+            if game.revealsTypes {
             HStack(spacing: 10) {
                 statCell("H", "\(stats.hands)")
                 statCell("VPIP", stats.vpipText)
@@ -428,6 +436,7 @@ struct ReadRow: View {
                 statCell("Limp", stats.limpText)
                 statCell("AF", stats.afText)
                 statCell("WTSD", stats.wtsdText)
+            }
             }
             if game.showHUD {
                 HStack { TypeBadge(type: bot.type, small: true); Spacer() }
@@ -487,6 +496,8 @@ struct HistoryPanel: View {
                             ForEach(rec.notes) { NoteCard(note: $0) }
                             ForEach(game.sims(for: rec.id)) { SimCard(eval: $0) }
                         }
+                        Button { app.modal = .handViewer(game, hand: rec.id) } label: { Label("Replay", systemImage: "play.fill") }
+                            .buttonStyle(PillButtonStyle(prominent: false, small: true))
                         if rec.heroInHand {
                             Button("Ask Claude about this hand") {
                                 if game.revealsTypes {

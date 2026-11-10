@@ -6,6 +6,10 @@ struct SessionReportView: View {
     @Environment(AppModel.self) private var app
     let game: GameController
     let startNewAfter: Bool
+    @State private var tab = Tab.report
+    @State private var replayHand: Int?
+
+    enum Tab: Hashable { case report, hands }
 
     var feedback: SessionFeedback {
         SessionFeedback.make(stats: game.stats, hero: game.heroStats, notes: game.allNotes, bigBlind: 2)
@@ -13,7 +17,19 @@ struct SessionReportView: View {
 
     var body: some View {
         let f = feedback
-        ModalCard(title: "Session report", width: 760, onClose: close) {
+        ModalCard(title: "Session report", width: tab == .hands ? HandViewer.width : 760, onClose: close) {
+            HStack {
+                BlockTabs(selection: $tab, options: [(.report, "Report"), (.hands, "Hands (\(game.history.filter(\.heroInHand).count))")])
+                Spacer()
+                if tab == .hands { Text("← → step · ↑ ↓ change hand").font(Theme.mono(10.5)).foregroundStyle(Theme.textFaint) }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, tab == .hands ? 12 : 0)
+            if tab == .hands {
+                Rectangle().fill(Theme.border).frame(height: 1)
+                HandViewer(game: game, reveal: true, start: replayHand).id(replayHand)
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -45,7 +61,10 @@ struct SessionReportView: View {
                         }
                     }
 
-                    SimSummary(game: game)
+                    SimSummary(game: game) { hand in
+                        replayHand = hand
+                        tab = .hands
+                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         SectionLabel("Who they really were")
@@ -110,6 +129,7 @@ struct SessionReportView: View {
                 .padding(18)
             }
             .frame(maxHeight: 640)
+            }
         }
         .onAppear { if startNewAfter { game.abandonHand() } }
     }
@@ -149,13 +169,7 @@ struct ChatDrawer: View {
                         Text("Claude · \(app.settings.model)").font(Theme.mono(10.5)).foregroundStyle(Theme.textFaint)
                     }
                     Spacer()
-                    Button(action: close) {
-                        Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.textDim)
-                            .frame(width: 26, height: 26)
-                            .background(RoundedRectangle(cornerRadius: 5).fill(Theme.surface2))
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.cancelAction)
+                    CloseButton(action: close)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 34)

@@ -82,12 +82,14 @@ enum Modal: Identifiable {
     case newTable(GameController)
     case quiz(GameController)
     case sessionReport(GameController, startNewAfter: Bool)
+    case handViewer(GameController, hand: Int)
 
     var id: String {
         switch self {
         case .newTable: "new"
         case .quiz: "quiz"
         case .sessionReport: "report"
+        case .handViewer: "hands"
         }
     }
 }

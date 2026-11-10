@@ -62,6 +62,17 @@ enum Snapshot {
             LevelBar(store: app.store).frame(width: 440)
             ActionBar(game: app.live)
         }.padding(24).environment(app), size: CGSize(width: 1100, height: 700), to: dir.appendingPathComponent("gym.png"))
+        app.training.debugPlayHands(30)
+        HandViewer.flat = true
+        if let rec = app.training.history.first(where: { $0.heroInHand && $0.state.board.count == 5 }) ?? app.training.history.first {
+            render(ModalCard(title: "Hand replayer", width: HandViewer.width, onClose: {}) {
+                HandViewer(game: app.training, reveal: true, start: rec.id)
+            }.environment(app), size: CGSize(width: HandViewer.width + 40, height: 800), to: dir.appendingPathComponent("replayer.png"))
+            let frames = HandReplay.frames(rec.state)
+            render(ReplayTable(hand: frames[frames.count - 1], final: rec.state, seatCount: 9, heroSeat: rec.heroInHand ? TableSession.heroSeat : nil,
+                               types: rec.profiles.mapValues(\.type), showAll: false, lastAction: rec.state.actions.last, fourColor: true),
+                   size: CGSize(width: 760, height: 320), to: dir.appendingPathComponent("replay-table.png"))
+        }
         app.tracker.persist = false
         var sim = TableSession(preset: .typical, seed: 11)
         let id = UUID()

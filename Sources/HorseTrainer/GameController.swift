@@ -445,6 +445,11 @@ final class GameController {
     }
 
     /// Deals and plays bots synchronously until it's the hero's turn (snapshots / tests).
+    /// Snapshot helper: hands with the hero on autopilot, straight into history.
+    func debugPlayHands(_ n: Int) {
+        for _ in 0..<n { appendRecord(session.playHand(heroProfile: .base(.reg)), notes: []) }
+    }
+
     func debugAdvanceToHero(maxHands: Int = 30) {
         for _ in 0..<maxHands {
             var h = session.startHand()

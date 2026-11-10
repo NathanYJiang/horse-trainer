@@ -254,7 +254,8 @@ struct PrincipleCard: View {
     }
 }
 
-/// Block button. Filled with `color` when prominent (white = primary), otherwise a bordered dark button.
+/// Capsule button in the Aside style: glassy fill, hairline edge, soft hover layer.
+/// Prominent white = primary; prominent with `color` = selected chip; otherwise a quiet glass button.
 struct PillButtonStyle: ButtonStyle {
     var color: Color = Theme.primary
     var prominent = true
@@ -262,10 +263,10 @@ struct PillButtonStyle: ButtonStyle {
     var small = false
 
     func makeBody(configuration: Configuration) -> some View {
-        BlockButton(configuration: configuration, color: color, prominent: prominent, large: large, small: small)
+        CapsuleButton(configuration: configuration, color: color, prominent: prominent, large: large, small: small)
     }
 
-    private struct BlockButton: View {
+    private struct CapsuleButton: View {
         let configuration: Configuration
         let color: Color
         let prominent: Bool
@@ -274,27 +275,35 @@ struct PillButtonStyle: ButtonStyle {
         @Environment(\.isEnabled) private var enabled
         @State private var hover = false
 
-        var isPrimary: Bool { color == Theme.primary }
+        var isPrimary: Bool { prominent && color == Theme.primary }
 
         var body: some View {
             configuration.label
                 .font(Theme.ui(large ? 14 : (small ? 12 : 13), .medium))
                 .lineLimit(1)
-                .padding(.horizontal, large ? 18 : (small ? 9 : 12))
+                .padding(.horizontal, large ? 20 : (small ? 11 : 14))
                 .frame(minHeight: large ? 40 : (small ? 26 : 32))
-                .foregroundStyle(prominent ? (isPrimary ? Theme.onPrimary : .white) : Theme.text)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.radiusSm)
-                        .fill(prominent ? color.opacity(configuration.isPressed ? 0.8 : (hover ? 0.92 : 1)) : (hover || configuration.isPressed ? Theme.surface3 : Theme.surface2))
-                )
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(prominent ? Color.clear : Theme.border, lineWidth: 1))
-                .contentShape(Rectangle())
-                .opacity(enabled ? 1 : 0.4)
-                .scaleEffect(configuration.isPressed ? 0.97 : 1)
-                .animation(.snappy(duration: 0.12), value: configuration.isPressed)
-                .animation(.easeOut(duration: 0.12), value: hover)
+                .foregroundStyle(isPrimary ? Theme.onPrimary : Theme.text)
+                .glassCapsule(fill: isPrimary ? Theme.primary.opacity(0.92) : (prominent ? color : Color.white.opacity(0.06)),
+                              hover: hover && enabled, pressed: configuration.isPressed, dark: isPrimary)
+                .opacity(enabled ? 1 : 0.45)
                 .onHover { hover = $0 }
         }
+    }
+}
+
+extension View {
+    /// Capsule fill + hairline edge + hover/press state layer, shared by every button-like control.
+    func glassCapsule(fill: Color, hover: Bool, pressed: Bool, dark: Bool = false) -> some View {
+        self
+            .background(Capsule().fill(fill))
+            .background(Capsule().fill(Color.black.opacity(dark ? 0.0 : 0.15)).shadow(color: .black.opacity(0.35), radius: 6, y: 2))
+            .overlay(Capsule().fill(dark ? Color.black.opacity(pressed ? 0.14 : (hover ? 0.06 : 0)) : Color.white.opacity(pressed ? 0.04 : (hover ? 0.09 : 0))))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(dark ? 0 : 0.12), lineWidth: 0.75))
+            .overlay(Capsule().strokeBorder(Color.black.opacity(pressed ? 0.25 : 0), lineWidth: 2).blur(radius: 1.5).clipShape(Capsule()))
+            .contentShape(Capsule())
+            .animation(.easeOut(duration: 0.12), value: hover)
+            .animation(.easeOut(duration: 0.08), value: pressed)
     }
 }
 
@@ -383,17 +392,19 @@ struct BlockTabs<T: Hashable>: View {
                     Text(title)
                         .font(Theme.ui(12.5, .medium))
                         .foregroundStyle(selection == value ? Theme.text : Theme.textDim)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, 13)
                         .frame(height: 28)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(selection == value ? Theme.surface3 : .clear))
-                        .contentShape(Rectangle())
+                        .background(Capsule().fill(selection == value ? Color.white.opacity(0.12) : .clear))
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(selection == value ? 0.12 : 0), lineWidth: 0.75))
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: Theme.radiusSm + 1).fill(Theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm + 1).strokeBorder(Theme.border))
+        .background(Capsule().fill(Color.white.opacity(0.04)))
+        .overlay(Capsule().strokeBorder(Theme.border, lineWidth: 0.75))
+        .animation(.easeOut(duration: 0.15), value: selection)
         .fixedSize()
     }
 }
@@ -417,11 +428,9 @@ struct BlockMenu<T: Hashable>: View {
                 Text(current).font(Theme.ui(12.5, .medium)).foregroundStyle(Theme.text)
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.textDim)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 13)
             .frame(height: 32)
-            .background(RoundedRectangle(cornerRadius: Theme.radiusSm).fill(Theme.surface2))
-            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSm).strokeBorder(Theme.border))
-            .contentShape(Rectangle())
+            .glassCapsule(fill: Color.white.opacity(0.06), hover: false, pressed: false)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -430,7 +439,7 @@ struct BlockMenu<T: Hashable>: View {
     }
 }
 
-/// Flat slider: thin track, square thumb.
+/// Flat slider: thin track, round thumb.
 struct BlockSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
@@ -445,7 +454,7 @@ struct BlockSlider: View {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 2).fill(Theme.surface3).frame(height: 4)
                 RoundedRectangle(cornerRadius: 2).fill(Theme.text).frame(width: max(0, (g.size.width - thumb) * t + thumb / 2), height: 4)
-                RoundedRectangle(cornerRadius: 4)
+                Circle()
                     .fill(Theme.text)
                     .frame(width: thumb, height: thumb)
                     .offset(x: (g.size.width - thumb) * t)
@@ -584,13 +593,7 @@ struct ModalCard<Content: View>: View {
             HStack {
                 Text(title).font(Theme.ui(15, .semibold))
                 Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.textDim)
-                        .frame(width: 26, height: 26)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.surface2))
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
+                CloseButton(action: onClose)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
@@ -600,5 +603,22 @@ struct ModalCard<Content: View>: View {
         .frame(width: width)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.borderStrong))
+    }
+}
+
+struct CloseButton: View {
+    let action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.textDim)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.white.opacity(hover ? 0.14 : 0.07)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.cancelAction)
+        .onHover { hover = $0 }
     }
 }

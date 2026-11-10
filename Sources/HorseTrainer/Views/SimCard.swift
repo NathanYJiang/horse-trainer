@@ -95,6 +95,7 @@ struct SimCard: View {
 /// Session-level summary of the simulated decisions.
 struct SimSummary: View {
     let game: GameController
+    var replay: ((Int) -> Void)?
 
     var body: some View {
         let sims = game.sims
@@ -124,7 +125,14 @@ struct SimSummary: View {
                 Text("COSTLIEST DECISIONS").font(Theme.ui(10, .bold)).foregroundStyle(Theme.textDim).padding(.top, 4)
                 ForEach(Array(costly)) { e in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Hand #\(e.handNumber)").font(Theme.mono(10)).foregroundStyle(Theme.textFaint)
+                        HStack {
+                            Text("Hand #\(e.handNumber)").font(Theme.mono(10)).foregroundStyle(Theme.textFaint)
+                            Spacer()
+                            if let replay {
+                                Button { replay(e.handNumber) } label: { Label("Replay", systemImage: "play.fill") }
+                                    .buttonStyle(PillButtonStyle(prominent: false, small: true))
+                            }
+                        }
                         SimCard(eval: e)
                     }
                 }

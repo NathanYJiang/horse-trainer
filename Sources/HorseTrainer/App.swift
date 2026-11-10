@@ -107,6 +107,10 @@ struct RootView: View {
             case .newTable(let g): NewTableSheet(game: g)
             case .quiz(let g): if let q = g.quiz { QuizResultView(result: q) { g.dismissQuiz(); app.modal = nil } }
             case .sessionReport(let g, let startNew): SessionReportView(game: g, startNewAfter: startNew)
+            case .handViewer(let g, let hand):
+                ModalCard(title: "Hand replayer", width: HandViewer.width, onClose: { app.modal = nil }) {
+                    HandViewer(game: g, reveal: g.revealsTypes, start: hand)
+                }
             }
         }
         .transition(.opacity)
